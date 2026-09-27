@@ -6,8 +6,8 @@ Each METRIC entry:
   key       : unique column header
   region    : US | EU | JP | HK | SG | KR | CN | GLOBAL
   bucket    : cb_balance | money_credit | rates | fx | stress | equity_index
-  source    : fred | yf | manual | derived
-  id        : FRED series id | yfinance ticker | manual_inputs.csv column | derived key
+  source    : fred | yf | tv | manual | derived
+  id        : FRED series id | yfinance ticker | econ_cache code (TradingView) | manual_inputs.csv column | derived key
   transform : level | yoy | chg13   (how to condition the series before z-scoring)
   sign      : +1 if higher = EASIER liquidity,  -1 if higher = TIGHTER
   weight    : relative weight inside its region composite
@@ -46,42 +46,48 @@ METRICS = [
     {"key": "us_m2_yoy",   "region": "US", "bucket": "money_credit", "source": "fred", "id": "M2SL",   "transform": "yoy",   "sign": +1, "weight": 1.0},
     {"key": "us_fed_funds","region": "US", "bucket": "rates",        "source": "fred", "id": "DFF",    "transform": "level", "sign": -1, "weight": 1.0},
     {"key": "us_2s10s",    "region": "US", "bucket": "rates",        "source": "fred", "id": "T10Y2Y", "transform": "level", "sign": +1, "weight": 0.5},  # steeper ~ easier (small weight)
+    {"key": "us_bank_credit",  "region": "US", "bucket": "money_credit", "source": "fred",    "id": "TOTBKCR",      "transform": "yoy",   "sign": +1, "weight": 1.0},  # H.8 bank credit, weekly
+    {"key": "us_reserves_gdp", "region": "US", "bucket": "cb_balance",   "source": "derived", "id": "reserves_gdp", "transform": "level", "sign": +1, "weight": 1.0},  # WRESBAL / nominal GDP, %
+    {"key": "us_sofr_iorb",    "region": "US", "bucket": "rates",        "source": "derived", "id": "sofr_iorb_w",  "transform": "level", "sign": -1, "weight": 0.75}, # bp; above IORB = reserves scarce
     {"key": "sp500",       "region": "US", "bucket": "equity_index", "source": "yf",   "id": "^GSPC",  "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- Europe ----------------
     {"key": "ecb_assets", "region": "EU", "bucket": "cb_balance",   "source": "fred", "id": "ECBASSETSW",       "transform": "yoy",   "sign": +1, "weight": 1.5},  # verify
-    {"key": "eu_m3_yoy",  "region": "EU", "bucket": "money_credit", "source": "fred", "id": "MABMM301EZM189S",  "transform": "yoy",   "sign": +1, "weight": 1.0},  # verify
+    {"key": "eu_m3_yoy",  "region": "EU", "bucket": "money_credit", "source": "tv",   "id": "EUM3",             "transform": "yoy",   "sign": +1, "weight": 1.0},  # TradingView (FRED copy died Nov-2023)
     {"key": "eurusd",     "region": "EU", "bucket": "fx",           "source": "yf",   "id": "EURUSD=X",         "transform": "level", "sign": +1, "weight": 0.5},
     {"key": "estoxx50",   "region": "EU", "bucket": "equity_index", "source": "yf",   "id": "^STOXX50E",        "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- Japan ----------------
     {"key": "boj_assets","region": "JP", "bucket": "cb_balance",   "source": "fred", "id": "JPNASSETS",      "transform": "yoy",   "sign": +1, "weight": 1.5},  # verify units (100 Mn Yen)
-    {"key": "jp_m2_yoy", "region": "JP", "bucket": "money_credit", "source": "fred", "id": "MYAGM2JPM189S",  "transform": "yoy",   "sign": +1, "weight": 1.0},  # verify
+    {"key": "jp_m2_yoy", "region": "JP", "bucket": "money_credit", "source": "tv",   "id": "JPM2",           "transform": "yoy",   "sign": +1, "weight": 1.0},  # TradingView (FRED copy died Feb-2017)
     {"key": "usdjpy",    "region": "JP", "bucket": "fx",           "source": "yf",   "id": "USDJPY=X",       "transform": "level", "sign": +1, "weight": 0.5},  # SIGN CHOICE: weak JPY (USDJPY up) = easy BOJ + exporter tailwind -> +1. Flip to -1 to read it as USD-funding stress.
     {"key": "nikkei",    "region": "JP", "bucket": "equity_index", "source": "yf",   "id": "^N225",          "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- Hong Kong ----------------
     {"key": "hk_agg_balance","region": "HK", "bucket": "cb_balance",   "source": "manual", "id": "hk_agg_balance", "transform": "level", "sign": +1, "weight": 1.5},  # HKMA API in v2
-    {"key": "hibor_3m",      "region": "HK", "bucket": "rates",        "source": "manual", "id": "hibor_3m",       "transform": "level", "sign": -1, "weight": 1.0},
+    {"key": "hibor_3m",      "region": "HK", "bucket": "rates",        "source": "tv",     "id": "HKINBR",         "transform": "level", "sign": -1, "weight": 1.0},
+    {"key": "hk_m2_yoy",     "region": "HK", "bucket": "money_credit", "source": "tv",     "id": "HKM2",           "transform": "yoy",   "sign": +1, "weight": 1.0},
     {"key": "usdhkd",        "region": "HK", "bucket": "fx",           "source": "yf",     "id": "USDHKD=X",       "transform": "level", "sign": -1, "weight": 0.5},  # toward 7.85 (weak side) = HKMA drains AB = tighter
     {"key": "hsi",           "region": "HK", "bucket": "equity_index", "source": "yf",     "id": "^HSI",           "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- Singapore ----------------
     {"key": "sora",      "region": "SG", "bucket": "rates",        "source": "manual", "id": "sora",      "transform": "level", "sign": -1, "weight": 1.0},  # MAS API in v2
-    {"key": "sg_m2_yoy", "region": "SG", "bucket": "money_credit", "source": "manual", "id": "sg_m2_yoy", "transform": "level", "sign": +1, "weight": 1.0},
+    {"key": "sg_m2_yoy", "region": "SG", "bucket": "money_credit", "source": "tv",     "id": "SGM2",      "transform": "yoy",   "sign": +1, "weight": 1.0},
     {"key": "usdsgd",    "region": "SG", "bucket": "fx",           "source": "yf",     "id": "USDSGD=X",  "transform": "level", "sign": -1, "weight": 0.5},
     {"key": "sti",       "region": "SG", "bucket": "equity_index", "source": "yf",     "id": "^STI",      "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- Korea ----------------
-    {"key": "kr_base_rate","region": "KR", "bucket": "rates",        "source": "manual", "id": "kr_base_rate", "transform": "level", "sign": -1, "weight": 1.0},  # BOK ECOS in v2
-    {"key": "kr_m2_yoy",   "region": "KR", "bucket": "money_credit", "source": "manual", "id": "kr_m2_yoy",    "transform": "level", "sign": +1, "weight": 1.0},
+    {"key": "kr_3m_rate",  "region": "KR", "bucket": "rates",        "source": "fred",   "id": "IR3TIB01KRM156N", "transform": "level", "sign": -1, "weight": 1.0},  # 3m interbank (OECD via FRED)
+    {"key": "kr_m2_yoy",   "region": "KR", "bucket": "money_credit", "source": "tv",     "id": "KRM2",         "transform": "yoy",   "sign": +1, "weight": 1.0},  # break-adjusted Feb-2026, see econ_cache.BREAKS
     {"key": "usdkrw",      "region": "KR", "bucket": "fx",           "source": "yf",     "id": "USDKRW=X",     "transform": "level", "sign": -1, "weight": 0.75},  # weak KRW = foreign outflow risk
     {"key": "kospi",       "region": "KR", "bucket": "equity_index", "source": "yf",     "id": "^KS11",        "transform": "level", "sign": +1, "weight": 0.0},
 
     # ---------------- China ----------------
-    {"key": "cn_m2_yoy",  "region": "CN", "bucket": "money_credit", "source": "manual", "id": "cn_m2_yoy",  "transform": "level", "sign": +1, "weight": 1.0},
+    {"key": "cn_m2_yoy",  "region": "CN", "bucket": "money_credit", "source": "tv",     "id": "CNM2",       "transform": "yoy",   "sign": +1, "weight": 1.0},
+    {"key": "cn_pboc_assets", "region": "CN", "bucket": "cb_balance", "source": "tv", "id": "CNCBBS",     "transform": "yoy",   "sign": +1, "weight": 1.0},
+    {"key": "cn_loan_growth", "region": "CN", "bucket": "money_credit", "source": "tv", "id": "CNLG",     "transform": "level", "sign": +1, "weight": 1.0},  # already % YoY
     {"key": "cn_tsf_yoy", "region": "CN", "bucket": "money_credit", "source": "manual", "id": "cn_tsf_yoy", "transform": "level", "sign": +1, "weight": 1.5},
-    {"key": "cn_7d_repo", "region": "CN", "bucket": "rates",        "source": "manual", "id": "cn_7d_repo", "transform": "level", "sign": -1, "weight": 1.0},
+    {"key": "cn_3m_rate", "region": "CN", "bucket": "rates",        "source": "fred",   "id": "IR3TIB01CNM156N", "transform": "level", "sign": -1, "weight": 1.0},  # 3m interbank (OECD via FRED)
     {"key": "cn_rrr",     "region": "CN", "bucket": "rates",        "source": "manual", "id": "cn_rrr",     "transform": "level", "sign": -1, "weight": 1.0},  # higher RRR = tighter
     {"key": "usdcny",     "region": "CN", "bucket": "fx",           "source": "yf",     "id": "USDCNY=X",   "transform": "level", "sign": -1, "weight": 0.5},
     {"key": "csi300",     "region": "CN", "bucket": "equity_index", "source": "yf",     "id": "000300.SS",  "transform": "level", "sign": +1, "weight": 0.0},

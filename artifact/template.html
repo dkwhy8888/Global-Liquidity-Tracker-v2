@@ -547,13 +547,15 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
       case 'pts': return v.toFixed(1);
       case 'index': return Math.abs(v) < 10 ? fmtSigned(v, 2) : v.toFixed(1);
       case 'HK$bn': return fmtNum(v, 1) + ' HK$bn';
-      case '% GDP': return fmtSigned(v, 1) + '% of GDP';
+      case '% GDP': return v.toFixed(1) + '% of GDP';
+      case 'bp': return fmtSigned(v, 0) + ' bp';
       default: return Math.abs(v) >= 100 ? fmtNum(v, 2) : v.toFixed(4);
     }
   }
   function fmtChg(v, unit) {
     if (v == null) return '—';
     if (unit === '% YoY' || unit === '%' || unit === 'pp' || unit === '% GDP') return fmtSigned(v, 2) + ' pp';
+    if (unit === 'bp') return fmtSigned(v, 0) + ' bp';
     if (unit === '') return fmtSigned(v, Math.abs(v) >= 1 ? 2 : 4);
     return fmtSigned(v, 2);
   }
@@ -1033,8 +1035,11 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
     notes.append(el('li', null, `Readings are carried forward at most ${D.params.staleWeeks} weeks before an input drops out.`));
     const fredIds = [...new Set(D.components.filter(c => c.source === 'FRED').map(c => c.id).concat(['WALCL', 'WTREGEN', 'WRESBAL', 'RRPONTSYD', 'ECBASSETSW', 'JPNASSETS']))].sort();
     const yIds = [...new Set(D.components.filter(c => c.source === 'Yahoo').map(c => c.id))].sort();
+    const tvIds = [...new Set(D.components.filter(c => c.source === 'TradingView').map(c => c.id))].sort();
     const src = el('p', 'ids', 'FRED: ' + fredIds.join(' · ')); const src2 = el('p', 'ids', 'Yahoo: ' + yIds.join(' · '));
-    col('Data notes', [notes, src, src2]);
+    const src3 = el('p', 'ids', 'TradingView (monthly, via Claude connector): ' + tvIds.join(' · '));
+    if (D.components.some(c => c.id === 'KRM2')) notes.append(el('li', null, 'Korea M2 fell 10.3% in one month (Feb 2026) in the source data, which looks like a definition change. Earlier months are rescaled so that month grows at its normal pace.'));
+    col('Data notes', [notes, src, src2, src3]);
   }
 
   /* ---------- boot ---------- */

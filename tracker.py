@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 import config as C
+import econ_cache as EC
 import market_fallback as MF
 
 
@@ -140,6 +141,25 @@ def derived_series(fred, mkt):
         out["g3_assets"] = pd.concat([fed, ecb, boj], axis=1).ffill().dropna().sum(axis=1)
     except Exception as e:
         print("  derived g3_assets FAILED (skips ECB/BOJ if ids missing):", e)
+    # Bank reserves as % of nominal GDP (reserve scarcity). WRESBAL $mn, GDP $bn SAAR.
+    try:
+        res = to_weekly(fred["WRESBAL"]) / 1000.0
+        # GDP is quarterly and published ~1 month after the quarter: carry the latest
+        # print forward to each reserves week (at most ~2 quarters)
+        gdp = to_weekly(fred["GDP"]).reindex(res.index.union(to_weekly(fred["GDP"]).index)) \
+                .ffill(limit=30).reindex(res.index)
+        out["reserves_gdp"] = (res / gdp * 100.0).dropna()
+    except Exception as e:
+        print("  derived reserves_gdp FAILED:", e)
+    # SOFR minus the Fed's floor rate (IOER before Jul-2021, IORB after), bp, weekly mean.
+    try:
+        floor = pd.concat([fred["IOER"].dropna(), fred["IORB"].dropna()]).sort_index()
+        floor = floor[~floor.index.duplicated(keep="last")]
+        sofr = fred["SOFR"].dropna()
+        spread = (sofr - floor.reindex(sofr.index, method="ffill")).dropna() * 100.0
+        out["sofr_iorb_w"] = spread.resample(C.RESAMPLE).mean().dropna()
+    except Exception as e:
+        print("  derived sofr_iorb_w FAILED:", e)
     return out
 
 
@@ -170,6 +190,8 @@ def _series_for(m, fred, mkt, man, deriv):
         return mkt.get(m["id"])
     if src == "derived":
         return deriv.get(m["id"])
+    if src == "tv":
+        return EC.load(m["id"])
     if src == "manual" and not man.empty and m["id"] in man.columns:
         return man[m["id"]].dropna()
     return None
@@ -177,7 +199,8 @@ def _series_for(m, fred, mkt, man, deriv):
 
 def build_dataset(start="2010-01-01"):
     fred_ids = sorted({m["id"] for m in C.METRICS if m["source"] == "fred"}
-                      | {"WALCL", "WTREGEN", "RRPONTSYD", "WRESBAL", "ECBASSETSW", "JPNASSETS"})
+                      | {"WALCL", "WTREGEN", "RRPONTSYD", "WRESBAL", "ECBASSETSW", "JPNASSETS",
+                         "GDP", "SOFR", "IORB", "IOER"})
     yf_ids   = sorted({m["id"] for m in C.METRICS if m["source"] == "yf"}
                       | {"EURUSD=X", "USDJPY=X"})
 

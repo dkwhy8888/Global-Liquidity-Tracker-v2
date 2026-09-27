@@ -43,6 +43,10 @@ LABELS = {
     "kr_base_rate": "BOK base rate", "kr_m2_yoy": "Korea M2", "usdkrw": "USD/KRW",
     "cn_m2_yoy": "China M2", "cn_tsf_yoy": "China total social financing",
     "cn_7d_repo": "China 7-day repo", "cn_rrr": "China reserve requirement", "usdcny": "USD/CNY",
+    "us_bank_credit": "US bank credit", "us_reserves_gdp": "US reserves / GDP",
+    "us_sofr_iorb": "SOFR − IORB", "hk_m2_yoy": "Hong Kong M2", "kr_3m_rate": "Korea 3m interbank rate",
+    "cn_pboc_assets": "PBOC balance sheet", "cn_loan_growth": "China loan growth",
+    "cn_3m_rate": "China 3m interbank rate",
 }
 # unit of the series the model actually scores; yoy transforms are always "% YoY"
 LEVEL_UNITS = {"us_hy_oas": "%", "us_ig_oas": "%", "nfci": "index", "vix": "pts",
@@ -50,15 +54,17 @@ LEVEL_UNITS = {"us_hy_oas": "%", "us_ig_oas": "%", "nfci": "index", "vix": "pts"
                "hk_agg_balance": "HK$bn", "hibor_3m": "%", "sora": "%", "kr_base_rate": "%",
                "cn_7d_repo": "%", "cn_rrr": "%", "cn_credit_impulse": "% GDP",
                "sg_m2_yoy": "% YoY", "kr_m2_yoy": "% YoY", "cn_m2_yoy": "% YoY",
-               "cn_tsf_yoy": "% YoY"}   # FX pairs: no unit
-SOURCE = {"fred": "FRED", "yf": "Yahoo", "manual": "Manual", "derived": "Derived"}
+               "cn_tsf_yoy": "% YoY", "us_reserves_gdp": "% GDP", "us_sofr_iorb": "bp",
+               "kr_3m_rate": "%", "cn_3m_rate": "%", "cn_loan_growth": "% YoY"}   # FX pairs: no unit
+SOURCE = {"fred": "FRED", "yf": "Yahoo", "tv": "TradingView", "manual": "Manual", "derived": "Derived"}
 PULSE_LABELS = {"net_liq_daily": "US net liquidity (daily est.)", "sofr_iorb": "SOFR − IORB",
                 "hy_oas": "US high-yield spread", "ig_oas": "US investment-grade spread",
                 "real_10y": "US 10-year real yield", "vix": "VIX", "move": "MOVE",
                 "dxy": "US dollar index (DXY)"}
 PULSE_IDS = {"net_liq_daily": "WALCL − TGA − RRPONTSYD", "sofr_iorb": "SOFR − IORB"}
 DERIVED_IDS = {"fed_net_liq": "WALCL − WTREGEN − RRPONTSYD",
-               "g3_assets": "WALCL + ECBASSETSW + JPNASSETS"}
+               "g3_assets": "WALCL + ECBASSETSW + JPNASSETS",
+               "reserves_gdp": "WRESBAL / GDP", "sofr_iorb_w": "SOFR − IORB"}
 
 
 def _num(v, nd):

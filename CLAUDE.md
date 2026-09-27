@@ -50,6 +50,13 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   weekly composites — never feeds them. Settings in `config.PULSE*`; phrases in
   `narrative.PULSE_PHRASES`. Daily TGA comes from the US Treasury Daily Treasury Statement API
   (`api.fiscaldata.treasury.gov`); if unreachable it falls back to weekly FRED `WDTGAL`.
+- **econ_cache.py** + **econ_cache/** — monthly macro series from the TradingView connector
+  (`ECONOMICS:<CODE>`): CN M2, PBOC assets, CN loan growth, HK M2, HIBOR, SG M2, KR M2, EU M3,
+  JP M2. Metric `source: "tv"`, `id` = code. The cloud network blocks the central-bank APIs
+  and FRED's copies died 2017–23, so a Claude session refreshes them:
+  `python econ_cache.py since CODE` → TradingView `get_economic_data` from that date →
+  save JSON → `python econ_cache.py merge CODE file.json`. `BREAKS` rescales pre-break history
+  for level breaks (KRM2 −10.3% in Feb-2026, treated as a definition change).
 - **market_fallback.py** + **market_fallback/** — price history for tickers yfinance can't
   supply (today `000300.SS` CSI 300, sourced from TradingView `SSE:000300` weekly bars).
   `tracker.fetch_yf()` uses the file when yfinance returns <30 rows. Refresh:
@@ -58,9 +65,9 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   writing `artifact/liquidity_tracker.html` (build output, gitignored).
 - **artifact/template.html** — the artifact's design and JS (edit layout here, never the
   built file). Must keep exactly one `@@DATA@@` placeholder.
-- **manual_inputs.csv** — HK/SG/KR/CN monetary inputs not yet auto-fetched (template:
-  `manual_inputs_template.csv`). One placeholder row today, so those inputs are skipped
-  (<30 obs) and HK/SG/KR/CN composites are **FX-only**.
+- **manual_inputs.csv** — inputs with no live source yet: HK Aggregate Balance, SORA, China
+  TSF, RRR, credit impulse. One placeholder row, so these are skipped (<30 obs). HK/SG/KR/CN
+  are no longer FX-only: they use the TradingView and FRED inputs above.
 - **run_dashboard.bat** — owner's Windows launcher: creates venv on first run, prompts for
   the FRED key only if the env var is empty, opens the browser, runs Streamlit headless.
 - **requirements.txt**, **.gitignore**, **.gitattributes** (`.bat` kept CRLF).
@@ -118,14 +125,16 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
    Build an adapter reading **Net Liquidity / Fed Assets / RRP / TGA / Reserve Balances**
    ($bn) as the US inputs. Needs from owner: the 5 column letters, and a decision on
    whether the file (or a sample) may be committed.
-3. **US reserve-scarcity gauges.** (SOFR − IORB is in the daily pulse; not yet in the weekly
-   US composite.) RRP has drained to ~$1bn (Sep 2026, vs $2.5trn peak), so
+3. ~~US reserve-scarcity gauges~~ **Done**: `us_sofr_iorb` (weekly mean, bp), `us_reserves_gdp`
+   (WRESBAL / GDP, GDP carried forward) and `us_bank_credit` (TOTBKCR YoY) are in the US
+   composite. Background: RRP has drained to ~$1bn (Sep 2026, vs $2.5trn peak), so
    reserves are the marginal absorber. Add **SOFR − IORB spread** (FRED `SOFR`, `IORB`) and
    **reserves/GDP** to flag tightness before it reaches net liquidity.
-4. **Replace manual and dead inputs with live APIs.** HKMA (Aggregate Balance, HIBOR), BOK
-   ECOS (base rate, M2), MAS / data.gov.sg (SORA, M2), ECB SDW (EU M3), BOJ (JP M2).
-5. **Auto-source China.** TSF + credit impulse (12m ΔTSF flow / GDP); LPR, 7-day reverse
-   repo, RRR. CSI 300 now comes from TradingView via `market_fallback/` (yfinance `000300.SS` returns 1 row).
+4. **Replace manual and dead inputs.** Done via TradingView/FRED: EU M3, JP M2, HK M2,
+   HIBOR, SG M2, KR M2, KR/CN 3m interbank (FRED `IR3TIB01KRM156N`, `IR3TIB01CNM156N`).
+   Still missing: HK Aggregate Balance, SORA (TradingView `SGINBR` is empty).
+5. **Auto-source China.** Done: M2, PBOC assets, loan growth, 3m interbank. Still missing:
+   TSF + credit impulse (12m ΔTSF flow / GDP), RRR. CSI 300 now comes from TradingView via `market_fallback/` (yfinance `000300.SS` returns 1 row).
 6. **Extend the global aggregate.** Add PBOC to G3 → G4 CB assets; add JPY/EUR
    cross-currency basis as a USD-funding-stress signal.
 7. **Extend the driver waterfall beyond the US** where data allows (US done).
