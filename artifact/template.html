@@ -134,8 +134,9 @@ h2 { font: 600 24px/1.15 var(--cond); margin: 0; letter-spacing: -.005em; text-w
 .mom.up svg { fill: var(--pos); } .mom.down svg { fill: var(--neg); }
 @media (max-width: 780px) {
   .board-head { display: none; }
-  .row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "code name mom" "pill pill corr" "zb zb zb"; row-gap: 9px; }
-  .c-code { grid-area: code; } .c-name { grid-area: name; } .c-pill { grid-area: pill; } .c-zb { grid-area: zb; } .c-mom { grid-area: mom; } .c-corr { grid-area: corr; text-align: right; }
+  .row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "code name mom" "pill pill pill" "zb zb zb" "corr corr corr"; row-gap: 9px; }
+  .c-code { grid-area: code; } .c-name { grid-area: name; } .c-pill { grid-area: pill; } .c-zb { grid-area: zb; } .c-mom { grid-area: mom; } .c-corr { grid-area: corr; }
+  .c-corr::before { content: "Market conditions"; display: block; font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 }
 .reads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 44px; margin-top: 26px; }
 .read { padding-block: 18px; border-top: 1px solid var(--hair); }
@@ -301,11 +302,11 @@ tr.comp td { font-weight: 600; }
     <div class="figs" id="dd-figs"></div>
     <p class="dd-read" id="dd-read"></p>
     <div class="two">
-      <div class="panel"><p class="chart-title">Composite liquidity score</p><p class="chart-note">Blue above zero means easier than this region's 3-year norm; red below means tighter.</p><div class="chart" id="ch-comp"></div></div>
+      <div class="panel"><p class="chart-title">Liquidity impulse and market conditions</p><p class="chart-note">Solid line: liquidity impulse (money and balance-sheet growth). Blue above zero is easier than its 3-year norm, red below is tighter. Dashed grey: market conditions (rates, spreads, volatility, FX).</p><div class="chart" id="ch-comp"></div></div>
       <div class="panel"><p class="chart-title" id="eq-title">Equity index</p><p class="chart-note" id="eq-note">Drawn on its own chart so the two scales can't suggest a fit that isn't there.</p><div class="chart" id="ch-eq"></div></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <div class="sec-head sm"><div><p class="chart-title">What's inside the score</p><p class="chart-note">Each input is scored against its own 3-year history, signed so + means easier, then weighted into the composite.</p></div><div class="seg" id="cview" role="group" aria-label="Small-chart view"></div></div>
+      <div class="sec-head sm"><div><p class="chart-title">What's inside the score</p><p class="chart-note">Each input is scored against its own 3-year history, signed so + means easier. Impulse inputs make the headline score; condition inputs make the market-conditions score.</p></div><div class="seg" id="cview" role="group" aria-label="Small-chart view"></div></div>
       <div class="tbl-wrap"><table id="ctbl"></table></div>
     </div>
     <div class="minis" id="minis"></div>
@@ -613,7 +614,7 @@ tr.comp td { font-weight: 600; }
     const L = $('#lead'); L.textContent = '';
     const add = (txt, strong) => L.append(strong ? el('strong', null, txt) : document.createTextNode(txt));
     const names = arr => arr.slice(0, 2).map(s => `${s.name} (${fmtSigned(s.z, 1)})`).join(' and ');
-    add('Liquidity is easier than normal in '); add(`${easy.length} of ${v.length}`, true);
+    add('The liquidity impulse is easier than normal in '); add(`${easy.length} of ${v.length}`, true);
     add(' regions, and momentum is improving in '); add(String(impr.length), true); add('. ');
     if (easy.length) { add('Easiest: '); add(names(easy), true); add('. '); }
     if (tight.length) { add('Tightest: '); add(names(tight), true); add('.'); }
@@ -622,16 +623,16 @@ tr.comp td { font-weight: 600; }
   function renderBoard() {
     const b = $('#board'); b.textContent = '';
     const head = el('div', 'board-head');
-    ['Region', 'Regime', 'Liquidity score (z)', '13-week momentum', 'Leads equities?'].forEach((h, i) => head.append(el('span', 'h' + i, h)));
+    ['Region', 'Regime', 'Liquidity impulse (z)', '13-week momentum', 'Market conditions (z)'].forEach((h, i) => head.append(el('span', 'h' + i, h)));
     b.append(head);
     D.summary.forEach(s => {
       const row = el('button', 'row'); row.type = 'button'; row.dataset.r = s.region;
-      row.setAttribute('aria-label', `${s.name}: ${s.regime}, score ${fmtSigned(s.z)}. Open region detail.`);
+      row.setAttribute('aria-label', `${s.name}: ${s.regime}, impulse ${fmtSigned(s.z)}, conditions ${fmtSigned(s.cz)}. Open region detail.`);
       const wrapIn = (cls, node) => { const w = el('span', cls); w.append(node); return w; };
       const zb = zbar(s.z); zb.classList.add('c-zb');
       const mo = momEl(s.mom); mo.classList.add('c-mom');
       row.append(wrapIn('c-code', codeChip(s.region)), el('span', 'c-name', s.name), wrapIn('c-pill', pill(s.regime)), zb, mo,
-        el('span', 'c-corr', s.corr == null ? '—' : `${cap(s.corrWord)} (${fmtSigned(s.corr)})`));
+        wrapIn('c-corr', zbar(s.cz)));
       row.addEventListener('click', () => selectRegion(s.region, true));
       b.append(row);
     });
@@ -701,20 +702,30 @@ tr.comp td { font-weight: 600; }
     const r = state.region; const S = D.summary.find(s => s.region === r);
     const comps = D.components.filter(c => c.region === r);
     $('#dd-title').textContent = S.name;
-    $('#dd-sub').textContent = `Composite built from ${comps.length} input${comps.length === 1 ? '' : 's'}` +
-      (S.fxOnly ? ', currently exchange-rate only.' : '.');
+    $('#dd-sub').textContent = `Liquidity impulse from ${S.nImpulse} input${S.nImpulse === 1 ? '' : 's'}; market conditions from ${S.nConditions}.`;
 
     const figs = $('#dd-figs'); figs.textContent = '';
     const fig = (l, v, sub) => { const f = el('div', 'fig'); f.append(el('span', 'l', l)); if (typeof v === 'string') f.append(el('span', 'v', v)); else f.append(v); if (sub) f.append(sub); return f; };
     const zv = el('span', 'v num', fmtSigned(S.z));
     figs.append(
-      fig('Liquidity score', zv, pill(S.regime)),
+      fig('Liquidity impulse', zv, pill(S.regime)),
       fig('13-week momentum', fmtSigned(S.mom), el('span', 's', S.mom == null ? '' : S.mom >= 0 ? 'Moving easier' : 'Moving tighter')),
+      fig('Market conditions', fmtSigned(S.cz), el('span', 's', S.cz == null ? '' : (S.cz >= 0 ? 'Easier than normal' : 'Tighter than normal') + (S.cmom == null ? '' : S.cmom >= 0 ? ', moving easier' : ', moving tighter'))),
       fig('Leads equities?', S.corr == null ? '—' : fmtSigned(S.corr),
         el('span', 's', S.corr == null ? 'No equity index to compare' : `${cap(S.corrWord)} link to the next ${D.params.leadWeeks} weeks' ${S.equity} return`)));
     $('#dd-read').innerHTML = mdInline(S.narrative);
 
-    mount($('#ch-comp'), t => buildPolarity(t, D.dates, D.composite[r], r + ' composite', false));
+    mount($('#ch-comp'), t => {
+      const o = buildPolarity(t, D.dates, D.composite[r], 'Liquidity impulse', false);
+      const cd = D.conditions && D.conditions[r] ? seriesOf(D.dates, D.conditions[r]) : [];
+      if (o && cd.length) {
+        o.series.push({ name: 'Market conditions', type: 'line', showSymbol: false, sampling: 'lttb', emphasis: { disabled: true },
+          lineStyle: { width: 1.5, color: t.muted, type: 'dashed' }, itemStyle: { color: t.muted }, data: cd });
+        o.legend = { top: 0, right: 0, itemWidth: 14, itemHeight: 2, icon: 'rect', textStyle: { color: t.ink2, fontFamily: FONT, fontSize: 12 } };
+        o.grid = Object.assign({}, o.grid, { top: 30 });
+      }
+      return o;
+    });
     const eqNode = $('#ch-eq');
     if (D.equities[r]) {
       $('#eq-title').textContent = `${S.equity}, index level`;
@@ -738,20 +749,20 @@ tr.comp td { font-weight: 600; }
   }
   function renderCompTable(comps) {
     const tbl = $('#ctbl'); tbl.textContent = '';
-    const wsum = comps.reduce((a, c) => a + c.weight, 0) || 1;
+    const wsum = g => comps.filter(c => c.group === g).reduce((a, c) => a + c.weight, 0) || 1;
     const thead = el('thead'); const hr = el('tr');
-    [['Input'], ['Latest', 'r'], [`${D.params.momWeeks}-week change`, 'r'], ['Signal (z)', 'r'], ['Weight', 'r'], ['Higher means']].forEach(([h, c]) => hr.append(el('th', c || null, h)));
+    [['Input'], ['Score'], ['Latest', 'r'], [`${D.params.momWeeks}-week change`, 'r'], ['Signal (z)', 'r'], ['Weight', 'r'], ['Higher means']].forEach(([h, c]) => hr.append(el('th', c || null, h)));
     thead.append(hr); tbl.append(thead);
     const tb = el('tbody');
-    comps.forEach(c => {
+    [...comps].sort((a, b) => (a.group === b.group ? 0 : a.group === 'impulse' ? -1 : 1)).forEach(c => {
       const tr = el('tr');
       const n = el('td'); n.append(el('div', 't-name', c.label));
       const meta = el('div', 't-meta'); meta.append(el('span', 'mono', `${c.source} · ${c.id}`));
       const b = statusBadge(c); if (b) meta.append(b);
       n.append(meta);
       const z = el('td', 'r'); z.append(heat(c.zLast));
-      tr.append(n, el('td', 'r num', fmtInput(c.input, c.unit)), el('td', 'r num', fmtChg(c.inputChg, c.unit)), z,
-        el('td', 'r num', Math.round(c.weight / wsum * 100) + '%'), el('td', null, c.sign > 0 ? 'Easier' : 'Tighter'));
+      tr.append(n, el('td', null, c.group === 'impulse' ? 'Impulse' : 'Conditions'), el('td', 'r num', fmtInput(c.input, c.unit)), el('td', 'r num', fmtChg(c.inputChg, c.unit)), z,
+        el('td', 'r num', Math.round(c.weight / wsum(c.group) * 100) + '%'), el('td', null, c.sign > 0 ? 'Easier' : 'Tighter'));
       tb.append(tr);
     });
     tbl.append(tb);
@@ -885,12 +896,12 @@ tr.comp td { font-weight: 600; }
     if (!BT) { $('#ev-read').textContent = 'The backtest did not run in this build.'; return; }
     const rows = BT.rows;
     const comps = rows.filter(r => r.key === 'COMPOSITE');
-    const good = rows.filter(r => r.key !== 'COMPOSITE' && (r.verdict === 'useful' || r.verdict === 'weak but consistent')).sort((a, b) => b.ic13 - a.ic13);
+    const good = rows.filter(r => r.key !== 'COMPOSITE' && r.key !== 'CONDITIONS' && (r.verdict === 'useful' || r.verdict === 'weak but consistent')).sort((a, b) => b.ic13 - a.ic13);
     const rev = rows.filter(r => r.ic13 != null && r.ic13 <= -0.1);
     const compGood = comps.filter(r => r.verdict === 'useful' || r.verdict === 'weak but consistent');
     const nm = r => `${r.label} (${r.region === 'GLOBAL' ? 'Global' : r.region})`;
     $('#ev-read').innerHTML = mdInline(
-      `**${compGood.length} of ${comps.length}** composite scores show a consistent lead on equities over 3 months. ` +
+      `**${compGood.length} of ${comps.length}** liquidity-impulse scores show a consistent lead on equities over 3 months. ` +
       (good.length ? `The inputs with the best record are **${good.slice(0, 4).map(nm).join(', ')}**: mostly money-supply and balance-sheet growth. ` : '') +
       (rev.length ? `Stress and currency signals (for example ${rev.slice(0, 3).map(nm).join(', ')}) tend to work in reverse: high stress came before better returns, so read them as a contrarian sign at extremes, not as a sell signal.` : ''));
     const head = el('thead'); head.innerHTML = '<tr><th>Signal</th><th class="r">1 month</th><th class="r">3 months</th><th class="r">6 months</th><th class="r">Holds in both halves?</th><th class="r">3m return when easy / tight</th><th>Verdict</th></tr>';
@@ -900,7 +911,7 @@ tr.comp td { font-weight: 600; }
       const rr = rows.filter(r => r.region === reg); if (!rr.length) return;
       const g = el('tr', 'grp'); const gc = el('td', null, `${nameOf(reg)} · vs ${rr[0].target === 'World (equal-weight)' ? 'average of the 7 equity indices' : (D.summary.find(s => s.region === reg) || {}).equity || reg}`); gc.colSpan = 7; g.append(gc); body.append(g);
       rr.forEach(r => {
-        const tr = el('tr', r.key === 'COMPOSITE' ? 'comp' : '');
+        const tr = el('tr', r.key === 'COMPOSITE' || r.key === 'CONDITIONS' ? 'comp' : '');
         const n = el('td'); n.append(el('div', 't-name', r.label)); if (r.start) n.append(el('div', 't-meta', 'from ' + r.start));
         const both = el('td', 'r num', r.h1 == null || r.h2 == null ? '—' : (Math.sign(r.h1) === Math.sign(r.h2) ? 'Yes' : 'No') + ` (${fmtSigned(r.h1, 2)} / ${fmtSigned(r.h2, 2)})`);
         const pc = v => v == null ? '—' : fmtSigned(v, 1) + '%';
@@ -1094,8 +1105,8 @@ tr.comp td { font-weight: 600; }
       el('p', null, 'A z-score is not more accurate than the raw number. It trades the real units for comparability. The real units are in the "What\'s inside the score" table and the Fed balance-sheet section. Signs are flipped where needed so + always means easier, and scores are capped at ±3.'),
     ]);
     col('Regimes and momentum', [
-      el('p', null, `A region is easy when its composite is at or above zero and tight when it is below. Momentum is the change in the composite over ${D.params.momWeeks} weeks: improving if it has risen, fading or deteriorating if it has fallen.`),
-      el('p', null, `"Leads equities?" is the historical correlation between the composite and the region's equity return over the following ${D.params.leadWeeks} weeks. Weak numbers are normal: liquidity is one driver among several.`),
+      el('p', null, 'Each region has two scores. The liquidity impulse blends money supply, credit and central-bank balance sheets. In the backtest, these were the inputs that led equities. Market conditions blends policy and interbank rates, credit spreads, volatility and currency. These describe the current backdrop but did not lead returns; at extremes, high stress often came before better returns.'),
+      el('p', null, `The regime comes from the liquidity impulse: easy when it is at or above zero, tight below. Momentum is its change over ${D.params.momWeeks} weeks: improving if it has risen, fading or deteriorating if it has fallen. "Leads equities?" in the region detail is the correlation of the impulse with the equity return over the next ${D.params.leadWeeks} weeks.`),
     ]);
     const notes = el('ul');
     const fx = D.summary.filter(s => s.fxOnly).map(s => s.name);

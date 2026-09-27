@@ -95,6 +95,13 @@ METRICS = [
 
 REGIONS = ["GLOBAL", "US", "EU", "JP", "HK", "SG", "KR", "CN"]
 
+# Each region gets two scores (backtest, Sep-2026: quantity signals lead equities,
+# price/stress signals do not and often work in reverse):
+#   impulse    = money supply, credit and central-bank balance sheets -> headline score + regime
+#   conditions = policy/interbank rates, spreads, volatility and FX    -> current backdrop
+IMPULSE_BUCKETS = {"cb_balance", "money_credit"}
+CONDITIONS_BUCKETS = {"rates", "stress", "fx"}
+
 # ---------------------------------------------------------------------------
 # DAILY PULSE - a separate, faster read on US funding and market stress.
 # It does NOT feed the weekly regional composites above; it sits beside them.

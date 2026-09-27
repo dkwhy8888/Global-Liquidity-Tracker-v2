@@ -11,10 +11,10 @@ FLAG = {"GLOBAL": "🌍", "US": "🇺🇸", "EU": "🇪🇺", "JP": "🇯🇵",
         "HK": "🇭🇰", "SG": "🇸🇬", "KR": "🇰🇷", "CN": "🇨🇳"}
 
 REGIME_OPEN = {
-    "Easy & Improving":      "Liquidity is **easier than normal and still improving** — a supportive, risk-on backdrop.",
-    "Easy & Fading":         "Liquidity is **easier than normal, but the tailwind is fading** — still supportive, just losing momentum.",
-    "Tight & Improving":     "Liquidity is **tighter than normal, but beginning to improve** — a headwind that's starting to ease.",
-    "Tight & Deteriorating": "Liquidity is **tighter than normal and still deteriorating** — a risk-off, headwind backdrop.",
+    "Easy & Improving":      "The liquidity impulse is **easier than normal and still improving** — a supportive, risk-on backdrop.",
+    "Easy & Fading":         "The liquidity impulse is **easier than normal, but the tailwind is fading** — still supportive, just losing momentum.",
+    "Tight & Improving":     "The liquidity impulse is **tighter than normal, but beginning to improve** — a headwind that's starting to ease.",
+    "Tight & Deteriorating": "The liquidity impulse is **tighter than normal and still deteriorating** — a risk-off, headwind backdrop.",
     "n/a":                   "Not enough data is loaded to classify this region yet.",
 }
 
@@ -168,7 +168,26 @@ def _names(names):
     return " and ".join(names[:2])
 
 
-def region_narrative(region, regime, level, mom, att, mom_weeks=13, fx_only=False):
+def conditions_sentence(level, att):
+    """One sentence on the market-conditions score (rates, spreads, volatility, FX)."""
+    if level is None or level != level:
+        return ""
+    lvl = "easier than normal" if level >= 0 else "tighter than normal"
+    out = f"**Market conditions** (rates, spreads, volatility and currency) are {lvl}"
+    ease = [PHRASES[k][1] for k, z, c in (att or {}).get("easing", [])[:1] if k in PHRASES]
+    tight = [PHRASES[k][2] for k, z, c in (att or {}).get("tightening", [])[:1] if k in PHRASES]
+    out += "."
+    if ease:
+        out += " Helping most: " + ease[0] + "."
+    if tight:
+        out += " Weighing most: " + tight[0] + "."
+    if level <= -1.0:
+        out += " In the past, stress this high has more often come before better equity returns than worse."
+    return out
+
+
+def region_narrative(region, regime, level, mom, att, mom_weeks=13, fx_only=False,
+                     cond_level=None, cond_att=None):
     """Return a short plain-English paragraph interpreting the region's regime."""
     out = [REGIME_OPEN.get(regime, "")]
     if att:
@@ -189,6 +208,7 @@ def region_narrative(region, regime, level, mom, att, mom_weeks=13, fx_only=Fals
     if fx_only:
         out.append("_(This region currently reflects exchange-rate moves only — its "
                    "policy-rate and money-supply inputs aren't loaded yet.)_")
+    out.append(conditions_sentence(cond_level, cond_att))
     return " ".join(p for p in out if p)
 
 

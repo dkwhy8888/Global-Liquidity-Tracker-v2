@@ -165,7 +165,8 @@ def backtest_payload(ds):
     for _, r in res.iterrows():
         rows.append({
             "region": r["region"], "key": r["signal"],
-            "label": "Composite score" if r["signal"] == "COMPOSITE" else LABELS.get(r["signal"], r["signal"]),
+            "label": {"COMPOSITE": "Liquidity impulse score", "CONDITIONS": "Market conditions score"}.get(
+                r["signal"], LABELS.get(r["signal"], r["signal"])),
             "ic4": _num(r["ic_4w"], 2), "ic13": _num(r["ic_13w"], 2), "ic26": _num(r["ic_26w"], 2),
             "t13": _num(r["t_13w"], 1), "h1": _num(r["ic13_first_half"], 2), "h2": _num(r["ic13_second_half"], 2),
             "retEasy": _num(r["ret13_when_easy"], 1), "retTight": _num(r["ret13_when_tight"], 1),
@@ -186,8 +187,12 @@ def build():
     summary = []
     for r in regions:
         row = summ.loc[r]
-        att = T.region_attribution(ds, r, top=3)
+        att = T.region_attribution(ds, r, top=3, buckets=C.IMPULSE_BUCKETS)
+        catt = T.region_attribution(ds, r, top=1, buckets=C.CONDITIONS_BUCKETS)
+        cz = ds["conditions"][r].dropna() if r in ds["conditions"].columns else pd.Series(dtype=float)
+        cm = ds["cond_momentum"][r].dropna() if r in ds["cond_momentum"].columns else pd.Series(dtype=float)
         rkeys = [k for k in ds["meta"] if ds["meta"][k]["region"] == r]
+        n_imp = sum(ds["meta"][k]["bucket"] in C.IMPULSE_BUCKETS for k in rkeys)
         fx_only = bool(rkeys) and {ds["meta"][k]["bucket"] for k in rkeys} <= {"fx"}
         c = _num(row[corr_col], 2)
         summary.append({
@@ -195,9 +200,13 @@ def build():
             "z": _num(row["liquidity_z"], 2), "mom": _num(row[mom_col], 2),
             "regime": row["regime"], "corr": c, "corrWord": _corr_word(c),
             "equity": EQUITY_NAMES.get(r) if r in ds["equities"].columns else None,
-            "fxOnly": fx_only, "nInputs": len(rkeys),
+            "fxOnly": fx_only, "nInputs": len(rkeys), "nImpulse": n_imp, "nConditions": len(rkeys) - n_imp,
+            "cz": _num(cz.iloc[-1], 2) if len(cz) else None,
+            "cmom": _num(cm.iloc[-1], 2) if len(cm) else None,
             "narrative": N.region_narrative(r, row["regime"], row["liquidity_z"], row[mom_col],
-                                            att, mom_weeks=C.MOM_WEEKS, fx_only=fx_only),
+                                            att, mom_weeks=C.MOM_WEEKS, fx_only=fx_only,
+                                            cond_level=float(cz.iloc[-1]) if len(cz) else None,
+                                            cond_att=catt),
         })
 
     comps = []
@@ -214,6 +223,7 @@ def build():
         chg = inp.iloc[-1] - inp.iloc[-1 - C.MOM_WEEKS] if len(inp) > C.MOM_WEEKS else None
         comps.append({
             "key": k, "region": m["region"], "label": LABELS.get(k, k),
+            "group": "impulse" if m["bucket"] in C.IMPULSE_BUCKETS else "conditions",
             "plain": N.PHRASES.get(k, (k,))[0],
             "source": SOURCE.get(m["source"], m["source"]),
             "id": DERIVED_IDS.get(m["id"], m["id"]),
@@ -248,6 +258,7 @@ def build():
         "regions": regions,
         "summary": summary,
         "composite": {r: _arr(comp[r], idx, 3) for r in regions},
+        "conditions": {r: _arr(ds["conditions"][r], idx, 3) for r in regions if r in ds["conditions"].columns},
         "equities": equities,
         "components": comps,
         "fed": fed,

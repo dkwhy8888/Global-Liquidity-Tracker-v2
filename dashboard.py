@@ -147,11 +147,14 @@ st.dataframe(
 with st.expander("📝  What's going on — plain-English read on each region",
                  expanded=True):
     for rr, row in summ.iterrows():
-        att = T.region_attribution(ds, rr, top=3)
+        att = T.region_attribution(ds, rr, top=3, buckets=C.IMPULSE_BUCKETS)
+        catt = T.region_attribution(ds, rr, top=1, buckets=C.CONDITIONS_BUCKETS)
+        cz = ds["conditions"][rr].dropna() if rr in ds["conditions"].columns else pd.Series(dtype=float)
         rkeys = [k for k in ds["meta"] if ds["meta"][k]["region"] == rr]
         fx_only = bool(rkeys) and {ds["meta"][k]["bucket"] for k in rkeys} <= {"fx"}
         text = N.region_narrative(rr, row["regime"], row["liquidity_z"], row[mom_col],
-                                  att, mom_weeks=C.MOM_WEEKS, fx_only=fx_only)
+                                  att, mom_weeks=C.MOM_WEEKS, fx_only=fx_only,
+                                  cond_level=float(cz.iloc[-1]) if len(cz) else None, cond_att=catt)
         st.markdown(f"**{N.FLAG.get(rr, '')} {rr} — {row['regime']}**  \n{text}")
         st.markdown("")
     st.caption("Plain-English interpretation built from the same component data as the tables "

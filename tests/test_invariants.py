@@ -125,3 +125,20 @@ def test_backtest_detects_a_real_lead():
     assert ic > 0.3 and t > 5
     noise = weekly(rng.normal(0, 1, n))
     assert abs(B._ic(noise, fwd, 1)[0]) < 0.15
+
+
+def test_every_input_is_in_exactly_one_score():
+    for m in C.METRICS:
+        if m["bucket"] == "equity_index":
+            continue
+        assert (m["bucket"] in C.IMPULSE_BUCKETS) != (m["bucket"] in C.CONDITIONS_BUCKETS), m["key"]
+
+
+def test_group_composite_uses_only_its_buckets():
+    idx = pd.date_range("2024-01-05", periods=3, freq=C.RESAMPLE)
+    meta = {"a": {"region": "US", "bucket": "money_credit", "weight": 1.0},
+            "b": {"region": "US", "bucket": "stress", "weight": 1.0}}
+    z = pd.DataFrame({"a": [1.0, 1.0, 1.0], "b": [-2.0, -2.0, -2.0]}, index=idx)
+    assert T.group_composite(meta, z, C.IMPULSE_BUCKETS)["US"].iloc[-1] == 1.0
+    assert T.group_composite(meta, z, C.CONDITIONS_BUCKETS)["US"].iloc[-1] == -2.0
+    assert T.group_composite(meta, z, None)["US"].iloc[-1] == -0.5

@@ -91,8 +91,12 @@ environment variable in cloud sessions). Never print, hardcode or commit it. The
 - **Z-score**: rolling `Z_WINDOW` weeks (default 156 ≈ 3y), clipped ±3.
 - **Sign**: +1 if higher = easier, −1 if tighter; applied *after* z-scoring so + always
   means easier.
-- **Composite**: weighted mean of available signed-z components per region.
-- **Regime**: quadrant from composite level (≥0 easy) × `MOM_WEEKS` momentum (≥0 improving).
+- **Two scores per region** (since Sep 2026, owner-approved, from the backtest):
+  **liquidity impulse** = weighted mean of available signed-z components in
+  `IMPULSE_BUCKETS` (cb_balance, money_credit) — this is `ds["composite"]`, the headline;
+  **market conditions** = same over `CONDITIONS_BUCKETS` (rates, stress, fx) —
+  `ds["conditions"]`. `ds["overall"]` keeps the old all-input score for reference.
+- **Regime**: quadrant from the impulse level (≥0 easy) × `MOM_WEEKS` impulse momentum.
 - **Lead/lag**: correlation of composite_t vs equity index return over the next
   `LEAD_WEEKS`.
 - All series resampled to weekly (W-FRI); monthly series forward-filled. The still-open
@@ -131,8 +135,8 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
 - Stress/FX inputs (VIX, Baa spread, USD, USD/KRW, USD/CNY, swap lines) tend to work in
   reverse (high stress → better later returns): contrarian at extremes.
 - TradingView inputs start 2018–19, so their record is short; ~40 signals tested, so 1–2
-  passes can be chance. Proposed next step (owner to approve — it changes weights): split
-  each region into a "liquidity impulse" score (quantities) and a "market stress" score.
+  passes can be chance. After the split, impulse scores lead in 3 of 8 regions (Global
+  +0.23, HK +0.40, KR +0.25 IC13); conditions scores lead in none.
 
 ## Open tasks (roughly prioritized)
 1. ~~Cloud + scheduled refresh~~ **Done** (Routine, Tue–Sat 07:46 KL). Daily TGA needs

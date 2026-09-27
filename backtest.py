@@ -98,7 +98,9 @@ def run(ds):
         else:
             continue
         if r in comp.columns:
-            add(r, "COMPOSITE", "Composite score", comp[r], tname, targets)
+            add(r, "COMPOSITE", "Liquidity impulse score", comp[r], tname, targets)
+        if "conditions" in ds and r in ds["conditions"].columns:
+            add(r, "CONDITIONS", "Market conditions score", ds["conditions"][r], tname, targets)
         for k, m in meta.items():
             if m["region"] == r and k in compZ.columns:
                 add(r, k, k, compZ[k], tname, targets)

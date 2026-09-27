@@ -257,10 +257,22 @@ def build_dataset(start="2010-01-01"):
     if not fed_bs.empty:
         fed_bs = fed_bs[fed_bs.index <= cutoff]
 
-    # region composite = weighted mean of available signed-z components
-    region_comp = {}
+    comp = group_composite(meta, compZ, C.IMPULSE_BUCKETS)       # headline: liquidity impulse
+    cond = group_composite(meta, compZ, C.CONDITIONS_BUCKETS)    # market conditions
+    overall = group_composite(meta, compZ, None)                 # all inputs (pre-split score)
+    mom = comp - comp.shift(C.MOM_WEEKS)
+    return dict(compZ=compZ, rawW=raw_df, equities=eq_df, composite=comp, momentum=mom,
+                conditions=cond, cond_momentum=cond - cond.shift(C.MOM_WEEKS), overall=overall,
+                meta=meta, fed_bs=fed_bs)
+
+
+def group_composite(meta, compZ, buckets):
+    """Per region, the weighted mean of the available signed-z components whose bucket is
+    in `buckets` (None = all inputs)."""
+    out = {}
     for r in C.REGIONS:
-        cols = [k for k, mm in meta.items() if mm["region"] == r]
+        cols = [k for k, mm in meta.items() if mm["region"] == r
+                and (buckets is None or mm["bucket"] in buckets)]
         if not cols:
             continue
         w = np.array([meta[k]["weight"] for k in cols], dtype=float)
@@ -269,23 +281,20 @@ def build_dataset(start="2010-01-01"):
         num = np.nansum(np.where(mask, vals * w, 0.0), axis=1)
         den = np.where(mask, w, 0.0).sum(axis=1)
         with np.errstate(invalid="ignore", divide="ignore"):
-            region_comp[r] = pd.Series(np.where(den > 0, num / den, np.nan), index=compZ.index)
-
-    comp = pd.DataFrame(region_comp)
-    mom = comp - comp.shift(C.MOM_WEEKS)
-    return dict(compZ=compZ, rawW=raw_df, equities=eq_df, composite=comp, momentum=mom,
-                meta=meta, fed_bs=fed_bs)
+            out[r] = pd.Series(np.where(den > 0, num / den, np.nan), index=compZ.index)
+    return pd.DataFrame(out)
 
 
 # ----------------------------------------------------------- attribution -----
-def region_attribution(ds, region, top=2):
+def region_attribution(ds, region, top=2, buckets=None):
     """Data-driven 'why': rank a region's signed-z components by their contribution
     to the composite level (z × weight / Σweight) and to its MOM_WEEKS momentum
     (Δ signed-z over the window, same weighting). Returns the top easing/tightening
     drivers of the *level* and the top improving/fading drivers of the *change*.
     Everything is computed from the data — no editorial narrative."""
     meta, compZ = ds["meta"], ds["compZ"]
-    keys = [k for k in meta if meta[k]["region"] == region and k in compZ.columns]
+    keys = [k for k in meta if meta[k]["region"] == region and k in compZ.columns
+            and (buckets is None or meta[k]["bucket"] in buckets)]
     latest = {k: compZ[k].iloc[-1] for k in keys if pd.notna(compZ[k].iloc[-1])}
     if not latest:
         return None
