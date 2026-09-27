@@ -1,0 +1,1057 @@
+<title>Global Liquidity Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root {
+  --page: #eef1f5;
+  --surface: #fcfcfd;
+  --surface-2: #f3f5f8;
+  --ink: #0f1419;
+  --ink-2: #465163;
+  --muted: #6f7a8c;
+  --hair: #e0e5ec;
+  --axis: #c3cbd6;
+  --accent: #2a78d6;
+  --pos: #2a78d6;
+  --neg: #e34948;
+  --delta-good: #006300;
+  --delta-bad: #b3261e;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7; --cat-8: #e34948;
+  --bar-bg: rgba(238, 241, 245, .86);
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0b0e12; --surface: #151a21; --surface-2: #1b212a;
+    --ink: #eef2f7; --ink-2: #b4bdc9; --muted: #8791a0; --hair: #262d38; --axis: #3a4453;
+    --accent: #3987e5; --pos: #3987e5; --neg: #e66767;
+    --delta-good: #3fbf3f; --delta-bad: #f07a78;
+    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
+    --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767;
+    --bar-bg: rgba(11, 14, 18, .86);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b0e12; --surface: #151a21; --surface-2: #1b212a;
+  --ink: #eef2f7; --ink-2: #b4bdc9; --muted: #8791a0; --hair: #262d38; --axis: #3a4453;
+  --accent: #3987e5; --pos: #3987e5; --neg: #e66767;
+  --delta-good: #3fbf3f; --delta-bad: #f07a78;
+  --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
+  --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767;
+  --bar-bg: rgba(11, 14, 18, .86);
+}
+
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font: 400 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: var(--gutter); }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: .9em; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* masthead */
+.mast { padding-block: 40px 22px; display: grid; gap: 10px; }
+.eyebrow { font: 600 12px/1.2 var(--cond); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 600 clamp(32px, 4.6vw, 48px)/1.02 var(--cond); letter-spacing: -.012em; margin: 0; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); font-size: 13px; }
+.meta b { color: var(--ink); font-weight: 600; }
+
+/* sticky control bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bar-bg); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); border-block: 1px solid var(--hair); }
+.bar-in { max-width: 1240px; margin: 0 auto; padding: 8px var(--gutter); display: flex; align-items: center; gap: 10px 28px; flex-wrap: wrap; }
+.ctl { display: flex; align-items: center; gap: 10px; }
+.ctl-l { font: 600 11px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.jump { display: flex; gap: 18px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.jump::-webkit-scrollbar { display: none; }
+.jump a { color: var(--ink-2); text-decoration: none; font-size: 13px; white-space: nowrap; padding-block: 6px; }
+.jump a:hover { color: var(--ink); }
+
+/* segmented control */
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--hair); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { background: transparent; border: 0; border-radius: 6px; padding: 6px 11px; font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--hair), 0 1px 2px rgba(0,0,0,.06); }
+.seg.codes button { font-family: var(--mono); font-size: 12.5px; }
+
+/* sections */
+section { padding-block: 44px 4px; scroll-margin-top: 60px; }
+.sec-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.sec-head.sm { margin-bottom: 10px; align-items: flex-start; }
+h2 { font: 600 24px/1.15 var(--cond); margin: 0; letter-spacing: -.005em; text-wrap: balance; }
+.sub { color: var(--ink-2); font-size: 14px; max-width: 70ch; margin: 6px 0 0; }
+.panel { background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 16px; min-width: 0; }
+.chart-title { font-weight: 600; font-size: 14px; margin: 0; }
+.chart-note { font-size: 12.5px; color: var(--muted); margin: 2px 0 8px; max-width: 70ch; }
+.caption { font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0; max-width: 80ch; }
+.chart { width: 100%; height: 320px; }
+.chart.sm { height: 150px; }
+.chart.wf { height: 300px; }
+.nochart { display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; padding: 16px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+
+/* the read */
+.lead { font: 400 clamp(19px, 2.3vw, 24px)/1.4 var(--sans); max-width: 58ch; margin: 0 0 22px; text-wrap: pretty; }
+.lead strong { font-weight: 600; }
+.board { padding: 0; overflow: hidden; }
+.board-head, .row { display: grid; grid-template-columns: 72px minmax(110px, 1fr) minmax(200px, 1.15fr) minmax(210px, 1.6fr) 120px 150px; gap: 14px; align-items: center; padding: 11px 16px; }
+.board-head { font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--hair); }
+.board-head .h0 { grid-column: span 2; }
+.row { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--hair); text-align: left; cursor: pointer; }
+.row:last-child { border-bottom: 0; }
+.row:hover { background: var(--surface-2); }
+.row[aria-current="true"] { background: color-mix(in oklab, var(--accent) 7%, var(--surface)); }
+.c-name { font-weight: 500; }
+.c-corr { font-size: 13px; color: var(--ink-2); }
+.code { display: inline-flex; align-items: center; gap: 7px; font: 500 12px/1 var(--mono); padding: 5px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--hair); white-space: nowrap; }
+.lk { display: inline-block; width: 12px; height: 3px; border-radius: 2px; flex: none; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.pill i { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; background: var(--st); color: #fff; flex: none; }
+.pill i svg { width: 12px; height: 12px; }
+.st-good { --st: var(--good); } .st-warning { --st: var(--warning); } .st-serious { --st: var(--serious); } .st-critical { --st: var(--critical); } .st-na { --st: var(--axis); }
+.st-warning i { color: #231a00; }
+.zb { display: grid; grid-template-columns: minmax(0, 1fr) 50px; align-items: center; gap: 10px; }
+.zb-track { position: relative; height: 10px; }
+.zb-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--hair); }
+.zb-mid { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--axis); }
+.zb-fill { position: absolute; top: 0; bottom: 0; }
+.zb-fill.pos { left: 50%; background: var(--pos); border-radius: 0 4px 4px 0; }
+.zb-fill.neg { right: 50%; background: var(--neg); border-radius: 4px 0 0 4px; }
+.zb-val { font-weight: 600; text-align: right; }
+.mom { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.mom svg { width: 11px; height: 11px; display: block; }
+.mom.up svg { fill: var(--pos); } .mom.down svg { fill: var(--neg); }
+@media (max-width: 780px) {
+  .board-head { display: none; }
+  .row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "code name mom" "pill pill corr" "zb zb zb"; row-gap: 9px; }
+  .c-code { grid-area: code; } .c-name { grid-area: name; } .c-pill { grid-area: pill; } .c-zb { grid-area: zb; } .c-mom { grid-area: mom; } .c-corr { grid-area: corr; text-align: right; }
+}
+.reads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 44px; margin-top: 26px; }
+.read { padding-block: 18px; border-top: 1px solid var(--hair); }
+.read-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.read-h h3 { font: 600 16px/1.2 var(--sans); margin: 0; }
+.read-h .pill { margin-left: auto; }
+.read p { margin: 0; color: var(--ink-2); max-width: 68ch; }
+.read p strong { color: var(--ink); font-weight: 600; }
+@media (max-width: 880px) { .reads { grid-template-columns: 1fr; } }
+
+/* overlay chips */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; background: var(--surface); border: 1px solid var(--hair); border-radius: 999px; padding: 5px 11px 5px 9px; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.chip .lk { width: 14px; height: 2px; background: var(--c); }
+.chip-code { font-family: var(--mono); font-size: 12px; }
+.chip-name { color: var(--ink-2); }
+.chip[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
+.chip[aria-pressed="false"] .lk { background: var(--hair); }
+.chip[aria-pressed="false"] .chip-name { color: var(--muted); }
+.linkbtn { background: none; border: 0; color: var(--accent); font-size: 12.5px; font-weight: 500; cursor: pointer; padding: 5px 6px; }
+.empty { color: var(--muted); font-size: 13px; padding: 12px 0 0; }
+
+/* region detail */
+.figs { display: flex; flex-wrap: wrap; gap: 18px 40px; align-items: flex-start; margin: 0 0 14px; }
+.fig { display: grid; gap: 4px; }
+.fig .l { font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fig .v { font: 600 28px/1.05 var(--sans); }
+.fig .s { font-size: 13px; color: var(--ink-2); }
+.dd-read { margin: 0 0 18px; color: var(--ink-2); max-width: 80ch; }
+.dd-read strong { color: var(--ink); font-weight: 600; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th { font: 600 11px/1.2 var(--cond); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+th.r, td.r { text-align: right; }
+td.num { white-space: nowrap; }
+.t-name { font-weight: 500; }
+.t-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.heat { display: inline-block; min-width: 58px; padding: 3px 8px; border-radius: 5px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.badge { font: 500 11px/1 var(--sans); padding: 3px 6px; border-radius: 5px; border: 1px solid var(--hair); background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.badge.dead { border-color: color-mix(in oklab, var(--neg) 45%, var(--hair)); }
+.htbl td, .htbl th { white-space: nowrap; }
+.htbl td:first-child { color: var(--ink-2); }
+
+/* mini charts */
+.minis { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; margin-top: 16px; }
+.mini { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 12px 12px 4px; min-width: 0; }
+.mini-h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.mini-h b { font-size: 13px; font-weight: 600; }
+.mini-h span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* fed */
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.tile.hero { border-color: color-mix(in oklab, var(--accent) 40%, var(--hair)); }
+.tile .l { font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font: 600 26px/1.05 var(--sans); }
+.tile .d { font-size: 12.5px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.tile .d.good { color: var(--delta-good); } .tile .d.bad { color: var(--delta-bad); } .tile .d.flat { color: var(--ink-2); }
+.tile .d svg { width: 10px; height: 10px; fill: currentColor; }
+.tile .id { font: 400 11px/1 var(--mono); color: var(--muted); }
+.spark { width: 100%; height: 30px; display: block; margin-top: 2px; }
+@media (max-width: 1040px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tile.hero { grid-column: span 2; } }
+@media (max-width: 600px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* regime map */
+.quad-box { position: relative; }
+.quad-box .chart { height: 380px; }
+.q { position: absolute; font: 600 11px/1.2 var(--cond); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
+.q-tr { top: 22px; right: 30px; } .q-tl { top: 22px; left: 56px; } .q-br { bottom: 52px; right: 30px; } .q-bl { bottom: 52px; left: 56px; }
+.notes { display: grid; gap: 16px; align-content: start; }
+.notes h3 { font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.notes ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.notes li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.notes .codes { display: flex; gap: 6px; flex-wrap: wrap; }
+.notes p { margin: 0; font-size: 14px; color: var(--ink-2); }
+
+/* history */
+.actions { display: flex; align-items: center; gap: 12px; }
+.btn { background: var(--surface); border: 1px solid var(--hair); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn:hover { border-color: var(--axis); }
+.flash { font-size: 13px; color: var(--ink-2); min-height: 1em; }
+textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono); background: var(--surface); color: var(--ink); border: 1px solid var(--hair); border-radius: 8px; padding: 10px; }
+
+/* method */
+.method { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 36px; }
+.method h3 { font: 600 15px/1.3 var(--sans); margin: 0 0 6px; }
+.method p, .method li { font-size: 14px; color: var(--ink-2); margin: 0 0 8px; }
+.method ul { margin: 0; padding-left: 18px; }
+.method .ids { font-family: var(--mono); font-size: 12px; line-height: 1.7; color: var(--ink-2); word-break: break-word; }
+@media (max-width: 900px) { .method { grid-template-columns: 1fr; } }
+.foot { padding-block: 40px 56px; color: var(--muted); font-size: 12.5px; }
+
+/* daily pulse */
+.chg { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chg.good { color: var(--delta-good); } .chg.bad { color: var(--delta-bad); } .chg.flat { color: var(--ink-2); }
+.p-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; max-width: 80ch; }
+
+/* chart tooltips (rendered by ECharts inside the page) */
+.tt-d { font: 600 11px/1.3 var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.tt-r { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.65; }
+.tt-r b { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 46px; }
+.tt-r span:last-child { color: var(--ink-2); }
+.tt-k { width: 12px; height: 2px; border-radius: 2px; flex: none; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<header class="wrap mast">
+  <div class="eyebrow">Weekly liquidity monitor · 7 markets + global overlay</div>
+  <h1>Global Liquidity Tracker</h1>
+  <div class="meta" id="meta"></div>
+</header>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="ctl"><span class="ctl-l" id="win-l">Chart window</span><div class="seg" id="win" role="group" aria-labelledby="win-l"></div></div>
+    <nav class="jump" aria-label="Sections">
+      <a href="#read">The read</a><a href="#pulse">Daily pulse</a><a href="#overlay">All regions</a><a href="#region">Region detail</a><a href="#fed">Fed balance sheet</a><a href="#map">Regime map</a><a href="#history">History</a><a href="#method">How to read this</a>
+    </nav>
+  </div>
+</div>
+
+<main class="wrap">
+  <section id="read">
+    <div class="sec-head"><div><h2>The read</h2><p class="sub">Where each market's liquidity sits against its own 3-year norm, and which way it's heading. Select a row for the detail.</p></div></div>
+    <p class="lead" id="lead"></p>
+    <div class="panel board" id="board"></div>
+    <div class="reads" id="reads"></div>
+  </section>
+
+  <section id="pulse">
+    <div class="sec-head"><div><h2>Daily pulse</h2><p class="sub">A faster read, rebuilt after each US trading day. It tracks US funding and market stress. It does not change the weekly scores above. It can show a change before the slower weekly data catch up.</p></div></div>
+    <div id="pulse-body"></div>
+  </section>
+
+  <section id="overlay">
+    <div class="sec-head"><div><h2>Liquidity scores, all regions</h2><p class="sub">Each line is one region's composite score. Above zero is easier than normal, below is tighter. Tap a region to hide or show it.</p></div></div>
+    <div class="panel">
+      <div class="chips" id="chips"></div>
+      <div class="chart" id="ch-overlay"></div>
+      <p class="empty" id="ov-empty" hidden>No regions selected. Pick one above.</p>
+    </div>
+  </section>
+
+  <section id="region">
+    <div class="sec-head"><div><h2 id="dd-title">Region detail</h2><p class="sub" id="dd-sub"></p></div><div class="seg codes" id="picker" role="group" aria-label="Region"></div></div>
+    <div class="figs" id="dd-figs"></div>
+    <p class="dd-read" id="dd-read"></p>
+    <div class="two">
+      <div class="panel"><p class="chart-title">Composite liquidity score</p><p class="chart-note">Blue above zero means easier than this region's 3-year norm; red below means tighter.</p><div class="chart" id="ch-comp"></div></div>
+      <div class="panel"><p class="chart-title" id="eq-title">Equity index</p><p class="chart-note" id="eq-note">Drawn on its own chart so the two scales can't suggest a fit that isn't there.</p><div class="chart" id="ch-eq"></div></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="sec-head sm"><div><p class="chart-title">What's inside the score</p><p class="chart-note">Each input is scored against its own 3-year history, signed so + means easier, then weighted into the composite.</p></div><div class="seg" id="cview" role="group" aria-label="Small-chart view"></div></div>
+      <div class="tbl-wrap"><table id="ctbl"></table></div>
+    </div>
+    <div class="minis" id="minis"></div>
+  </section>
+
+  <section id="fed">
+    <div class="sec-head"><div><h2>US Fed balance sheet</h2><p class="sub">Net liquidity is the cash the Fed leaves in the system: its total assets, minus the Treasury's cash account at the Fed (TGA), minus the overnight reverse repo (RRP). Figures in $bn from the weekly H.4.1 release.</p></div></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="panel" style="margin-top:16px">
+      <div class="sec-head sm"><div><p class="chart-title">What moved net liquidity</p><p class="chart-note">A rise in the TGA or RRP pulls cash out of the system, so they enter with a minus sign.</p></div><div class="seg" id="wfh" role="group" aria-label="Waterfall period"></div></div>
+      <div class="chart wf" id="ch-wf"></div>
+      <p class="caption" id="wf-cap"></p>
+    </div>
+    <div class="minis" id="fed-minis"></div>
+  </section>
+
+  <section id="map">
+    <div class="sec-head"><div><h2>Regime map</h2><p class="sub">Liquidity level across, 13-week momentum up. Top right is easy and improving; bottom left is tight and getting tighter.</p></div></div>
+    <div class="two">
+      <div class="panel"><div class="quad-box"><div class="chart" id="ch-quad"></div><span class="q q-tl">Tight · improving</span><span class="q q-tr">Easy · improving</span><span class="q q-bl">Tight · deteriorating</span><span class="q q-br">Easy · fading</span></div></div>
+      <div class="panel notes" id="map-notes"></div>
+    </div>
+  </section>
+
+  <section id="history">
+    <div class="sec-head"><div><h2>Recent history</h2><p class="sub">Composite score by week for the last 12 weeks. Copy the full weekly history to paste into Excel.</p></div><div class="actions"><span class="flash" id="flash" role="status"></span><button class="btn" id="copy-csv" type="button">Copy full history (CSV)</button></div></div>
+    <div class="panel tbl-wrap"><table class="htbl" id="htbl"></table></div>
+    <textarea id="csv-fallback" rows="6" aria-label="Full history as CSV" hidden></textarea>
+  </section>
+
+  <section id="method">
+    <div class="sec-head"><div><h2>How to read this</h2></div></div>
+    <div class="method" id="method-body"></div>
+  </section>
+</main>
+<footer class="wrap foot" id="foot"></footer>
+
+<script type="application/json" id="liq-data">@@DATA@@</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  const D = JSON.parse(document.getElementById('liq-data').textContent);
+
+  /* ---------- helpers ---------- */
+  const $ = (s, r = document) => r.querySelector(s);
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const MINUS = '−';
+  function fmtSigned(v, d = 2) {
+    if (v == null || isNaN(v)) return '—';
+    const s = Math.abs(v).toFixed(d);
+    return (Number(s) === 0 ? '' : v > 0 ? '+' : MINUS) + s;
+  }
+  function fmtNum(v, d = 1) {
+    if (v == null || isNaN(v)) return '—';
+    return (v < 0 ? MINUS : '') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function ymd(iso) { const [y, m, d] = iso.slice(0, 10).split('-').map(Number); return { y, m, d }; }
+  function fmtDate(iso) { const p = ymd(iso); return `${p.d} ${MON[p.m - 1]} ${p.y}`; }
+  function fmtMonth(iso) { const p = ymd(iso); return `${MON[p.m - 1]} ${p.y}`; }
+  function dateOf(x) {
+    if (typeof x === 'string') return fmtDate(x);
+    const d = new Date(x); return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('liq:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('liq:' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
+  };
+  function mdInline(text) {
+    return esc(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|\s)_(.+?)_(?=\s|$)/g, '$1<em>$2</em>');
+  }
+  const nameOf = r => (D.summary.find(s => s.region === r) || {}).name || r;
+  const catVar = r => `var(--cat-${D.regions.indexOf(r) + 1})`;
+
+  /* ---------- state ---------- */
+  const WINDOWS = { '1Y': 52, '3Y': 156, '5Y': 260, 'Max': null };
+  const savedWin = store.get('win', '3Y');
+  const savedRegion = store.get('region', 'US');
+  const state = {
+    win: Object.prototype.hasOwnProperty.call(WINDOWS, savedWin) ? savedWin : '3Y',
+    region: D.regions.includes(savedRegion) ? savedRegion : D.regions[0],
+    sel: new Set(D.regions),
+    cview: 'z',
+    wf: 1,
+  };
+
+  /* ---------- regimes ---------- */
+  const ICON = {
+    up: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 9 9 3M4.5 3H9v4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    down: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 4.5V9H4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    flat: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  };
+  const TRI = {
+    up: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2 10.8 10H1.2z"/></svg>',
+    down: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10 1.2 2h9.6z"/></svg>',
+  };
+  const REGIME = {
+    'Easy & Improving': { cls: 'st-good', dir: 'up' },
+    'Easy & Fading': { cls: 'st-warning', dir: 'down' },
+    'Tight & Improving': { cls: 'st-serious', dir: 'up' },
+    'Tight & Deteriorating': { cls: 'st-critical', dir: 'down' },
+    'n/a': { cls: 'st-na', dir: 'flat' },
+  };
+  function pill(regime) {
+    const R = REGIME[regime] || REGIME['n/a'];
+    const s = el('span', 'pill ' + R.cls); const i = el('i'); i.innerHTML = ICON[R.dir];
+    s.append(i, el('span', null, regime === 'n/a' ? 'Not enough data' : regime)); return s;
+  }
+  function codeChip(r) {
+    const c = el('span', 'code'); const k = el('span', 'lk'); k.style.background = catVar(r);
+    c.append(k, document.createTextNode(r)); return c;
+  }
+  function zbar(z) {
+    const w = el('span', 'zb'); const tr = el('span', 'zb-track'); tr.append(el('span', 'zb-mid'));
+    if (z != null) {
+      const f = el('span', 'zb-fill ' + (z >= 0 ? 'pos' : 'neg'));
+      f.style.width = (Math.min(Math.abs(z), 3) / 3 * 50) + '%'; tr.append(f);
+    }
+    w.append(tr, el('span', 'zb-val num', fmtSigned(z))); return w;
+  }
+  function momEl(m) {
+    const w = el('span', 'mom' + (m == null ? '' : m >= 0 ? ' up' : ' down'));
+    if (m != null) { const i = el('span'); i.innerHTML = m >= 0 ? TRI.up : TRI.down; w.append(i); }
+    w.append(el('span', 'num', fmtSigned(m))); return w;
+  }
+  function heat(z, d = 2) {
+    const s = el('span', 'heat', z == null ? '—' : fmtSigned(z, d));
+    if (z != null) {
+      const p = Math.round(Math.min(Math.abs(z) / 3, 1) * 62);
+      s.style.background = `color-mix(in oklab, var(${z >= 0 ? '--pos' : '--neg'}) ${p}%, var(--surface))`;
+    }
+    return s;
+  }
+
+  /* ---------- charts ---------- */
+  const hasCharts = typeof window.echarts !== 'undefined';
+  const FONT = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, Consolas, monospace';
+  const registry = new Map();
+  function tk() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = n => cs.getPropertyValue(n).trim();
+    return { ink: g('--ink'), ink2: g('--ink-2'), muted: g('--muted'), hair: g('--hair'), axis: g('--axis'),
+      surface: g('--surface'), pos: g('--pos'), neg: g('--neg'), accent: g('--accent'),
+      cats: D.regions.map((_, i) => g('--cat-' + (i + 1))) };
+  }
+  function draw(rec) { const opt = rec.build(tk()); if (opt) rec.inst.setOption(opt, { notMerge: true }); else rec.inst.clear(); }
+  function mount(node, build) {
+    if (!hasCharts) {
+      node.classList.add('nochart');
+      node.textContent = 'The charting library did not load. Every value is still in the tables on this page.';
+      return;
+    }
+    let rec = registry.get(node);
+    if (!rec) {
+      const inst = echarts.init(node, null, { renderer: 'svg' });
+      const ro = new ResizeObserver(() => inst.resize()); ro.observe(node);
+      rec = { inst, ro, build }; registry.set(node, rec);
+    }
+    rec.build = build; draw(rec);
+  }
+  function redraw(node) { const rec = registry.get(node); if (rec) draw(rec); }
+  function redrawAll() {
+    registry.forEach((rec, node) => {
+      if (!node.isConnected) { rec.ro.disconnect(); rec.inst.dispose(); registry.delete(node); }
+      else draw(rec);
+    });
+  }
+  function unmountIn(container) {
+    registry.forEach((rec, node) => {
+      if (container.contains(node)) { rec.ro.disconnect(); rec.inst.dispose(); registry.delete(node); }
+    });
+    container.textContent = '';
+  }
+
+  function startIndex(dates) {
+    const w = WINDOWS[state.win]; if (!w) return 0;
+    const cut = Date.parse(dates[dates.length - 1]) - w * 7 * 864e5;
+    let i = dates.length - 1; while (i > 0 && Date.parse(dates[i - 1]) > cut) i--; return i;
+  }
+  function seriesOf(dates, arr) {
+    const out = []; for (let i = startIndex(dates); i < dates.length; i++) out.push([dates[i], arr[i]]);
+    let k = 0; while (k < out.length && out[k][1] == null) k++; return out.slice(k);
+  }
+  const lbl = (t, size = 11) => ({ color: t.muted, fontFamily: FONT, fontSize: size, hideOverlap: true });
+  function timeAxis(t, size) { return { type: 'time', axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: lbl(t, size), splitLine: { show: false } }; }
+  function valAxis(t, extra) {
+    return Object.assign({ type: 'value', scale: true, axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: lbl(t), splitLine: { lineStyle: { color: t.hair, width: 1, type: 'solid' } } }, extra || {});
+  }
+  const symY = { scale: false, min: v => Math.min(-1, Math.floor(v.min)), max: v => Math.max(1, Math.ceil(v.max)) };
+  function zeroLine(t) { return { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: t.axis, width: 1, type: 'solid' }, data: [{ yAxis: 0 }] }; }
+  function tip(t, formatter, trigger = 'axis') {
+    return { trigger, confine: true, backgroundColor: t.surface, borderColor: t.hair, borderWidth: 1, padding: [8, 10],
+      textStyle: { color: t.ink, fontFamily: FONT, fontSize: 12 },
+      extraCssText: 'border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);',
+      axisPointer: { type: 'line', lineStyle: { color: t.axis, width: 1, type: 'solid' }, label: { show: false } }, formatter };
+  }
+  function axisTip(fmt) {
+    return ps => {
+      const list = (Array.isArray(ps) ? ps : [ps]).filter(p => p.value && p.value[1] != null);
+      if (!list.length) return '';
+      return `<div class="tt-d">w/e ${esc(dateOf(list[0].value[0]))}</div>` + list.map(p =>
+        `<div class="tt-r"><span class="tt-k" style="background:${p.color}"></span><b>${esc(fmt(p.value[1]))}</b><span>${esc(p.seriesName)}</span></div>`).join('');
+    };
+  }
+  const GRID = { left: 44, right: 16, top: 12, bottom: 28 };
+  const GRID_SM = { left: 38, right: 8, top: 8, bottom: 22 };
+
+  function buildPolarity(t, dates, arr, name, compact) {
+    const data = seriesOf(dates, arr); if (!data.length) return null;
+    return {
+      animation: false, grid: compact ? GRID_SM : GRID,
+      xAxis: timeAxis(t, compact ? 10 : 11),
+      yAxis: valAxis(t, Object.assign({}, symY, compact ? { splitNumber: 2, axisLabel: lbl(t, 10) } : {})),
+      /* finite bounds on purpose: ECharts' line gradient crashes when every piece is open-ended */
+      visualMap: { show: false, type: 'piecewise', dimension: 1, seriesIndex: 0, pieces: [{ gte: 0, lte: 100, color: t.pos }, { gte: -100, lt: 0, color: t.neg }] },
+      tooltip: tip(t, axisTip(v => fmtSigned(v))),
+      series: [{ name, type: 'line', showSymbol: false, symbolSize: 8, sampling: 'lttb', emphasis: { disabled: true },
+        lineStyle: { width: 2 }, areaStyle: { opacity: 0.1, origin: 0 }, data, markLine: zeroLine(t) }],
+    };
+  }
+  function buildLine(t, dates, arr, name, color, fmt, axisFmt, compact) {
+    const data = seriesOf(dates, arr); if (!data.length) return null;
+    return {
+      animation: false, grid: compact ? { left: 52, right: 8, top: 8, bottom: 22 } : { left: 56, right: 16, top: 12, bottom: 28 },
+      xAxis: timeAxis(t, compact ? 10 : 11),
+      yAxis: valAxis(t, Object.assign({ axisLabel: Object.assign(lbl(t, compact ? 10 : 11), { formatter: axisFmt }) }, compact ? { splitNumber: 2 } : {})),
+      tooltip: tip(t, axisTip(fmt)),
+      series: [{ name, type: 'line', showSymbol: false, symbolSize: 8, sampling: 'lttb', emphasis: { disabled: true },
+        lineStyle: { width: 2, color }, itemStyle: { color, borderColor: t.surface, borderWidth: 2 }, data }],
+    };
+  }
+  function kAxis(v) { const a = Math.abs(v); return a >= 1000 ? fmtNum(v / 1000, a >= 10000 ? 0 : 1) + 'k' : fmtNum(v, a < 10 && v % 1 ? 2 : 0); }
+  function bnAxis(v) { return Math.abs(v) >= 1000 ? '$' + fmtNum(v / 1000, 1) + 'trn' : '$' + fmtNum(v, 0) + 'bn'; }
+  const bn = v => v == null ? '—' : '$' + fmtNum(v, Math.abs(v) < 100 ? 1 : 0) + 'bn';
+
+  /* ---------- unit formatting ---------- */
+  function fmtInput(v, unit) {
+    if (v == null) return '—';
+    switch (unit) {
+      case '% YoY': return fmtSigned(v, 1) + '% YoY';
+      case '%': return v.toFixed(2) + '%';
+      case 'pp': return fmtSigned(v, 2) + ' pp';
+      case 'pts': return v.toFixed(1);
+      case 'index': return Math.abs(v) < 10 ? fmtSigned(v, 2) : v.toFixed(1);
+      case 'HK$bn': return fmtNum(v, 1) + ' HK$bn';
+      case '% GDP': return fmtSigned(v, 1) + '% of GDP';
+      default: return Math.abs(v) >= 100 ? fmtNum(v, 2) : v.toFixed(4);
+    }
+  }
+  function fmtChg(v, unit) {
+    if (v == null) return '—';
+    if (unit === '% YoY' || unit === '%' || unit === 'pp' || unit === '% GDP') return fmtSigned(v, 2) + ' pp';
+    if (unit === '') return fmtSigned(v, Math.abs(v) >= 1 ? 2 : 4);
+    return fmtSigned(v, 2);
+  }
+
+  /* ---------- masthead + control bar ---------- */
+  function renderMeta() {
+    const m = $('#meta');
+    const item = (label, val) => { const s = el('span'); s.append(document.createTextNode(label + ' ')); s.append(el('b', null, val)); return s; };
+    m.append(item('Latest week', 'w/e ' + fmtDate(D.asOf)),
+      item('Built', fmtDate(D.builtAt) + ', ' + D.builtAt.slice(11)),
+      item('Daily pulse', D.pulse ? fmtDate(D.pulse.asOf) : '—'),
+      item('Sources', 'FRED · Yahoo Finance · TradingView · US Treasury'),
+      el('span', null, 'Rebuilds automatically Tue–Sat, 08:00 Kuala Lumpur time.'));
+    $('#foot').textContent = `Global Liquidity Tracker · snapshot built ${fmtDate(D.builtAt)} from tracker.py and narrative.py · z-scores use a ${D.params.zWindow}-week rolling window`;
+  }
+  function seg(container, options, current, onPick) {
+    container.textContent = '';
+    options.forEach(([val, label, title]) => {
+      const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(val === current));
+      if (title) b.title = title;
+      b.addEventListener('click', () => {
+        container.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        onPick(val);
+      });
+      container.append(b);
+    });
+  }
+
+  /* ---------- the read ---------- */
+  function renderLead() {
+    const v = D.summary.filter(s => s.z != null);
+    const easy = v.filter(s => s.z >= 0).sort((a, b) => b.z - a.z);
+    const tight = v.filter(s => s.z < 0).sort((a, b) => a.z - b.z);
+    const impr = v.filter(s => s.mom != null && s.mom >= 0);
+    const L = $('#lead'); L.textContent = '';
+    const add = (txt, strong) => L.append(strong ? el('strong', null, txt) : document.createTextNode(txt));
+    const names = arr => arr.slice(0, 2).map(s => `${s.name} (${fmtSigned(s.z, 1)})`).join(' and ');
+    add('Liquidity is easier than normal in '); add(`${easy.length} of ${v.length}`, true);
+    add(' regions, and momentum is improving in '); add(String(impr.length), true); add('. ');
+    if (easy.length) { add('Easiest: '); add(names(easy), true); add('. '); }
+    if (tight.length) { add('Tightest: '); add(names(tight), true); add('.'); }
+    else add('No region is tighter than normal.');
+  }
+  function renderBoard() {
+    const b = $('#board'); b.textContent = '';
+    const head = el('div', 'board-head');
+    ['Region', 'Regime', 'Liquidity score (z)', '13-week momentum', 'Leads equities?'].forEach((h, i) => head.append(el('span', 'h' + i, h)));
+    b.append(head);
+    D.summary.forEach(s => {
+      const row = el('button', 'row'); row.type = 'button'; row.dataset.r = s.region;
+      row.setAttribute('aria-label', `${s.name}: ${s.regime}, score ${fmtSigned(s.z)}. Open region detail.`);
+      const wrapIn = (cls, node) => { const w = el('span', cls); w.append(node); return w; };
+      const zb = zbar(s.z); zb.classList.add('c-zb');
+      const mo = momEl(s.mom); mo.classList.add('c-mom');
+      row.append(wrapIn('c-code', codeChip(s.region)), el('span', 'c-name', s.name), wrapIn('c-pill', pill(s.regime)), zb, mo,
+        el('span', 'c-corr', s.corr == null ? '—' : `${cap(s.corrWord)} (${fmtSigned(s.corr)})`));
+      row.addEventListener('click', () => selectRegion(s.region, true));
+      b.append(row);
+    });
+    markCurrent();
+  }
+  function markCurrent() { document.querySelectorAll('#board .row').forEach(r => r.setAttribute('aria-current', String(r.dataset.r === state.region))); }
+  function renderReads() {
+    const box = $('#reads'); box.textContent = '';
+    D.summary.forEach(s => {
+      const a = el('article', 'read'); const h = el('div', 'read-h');
+      h.append(codeChip(s.region), el('h3', null, s.name), pill(s.regime));
+      const p = el('p'); p.innerHTML = mdInline(s.narrative);
+      a.append(h, p); box.append(a);
+    });
+  }
+
+  /* ---------- overlay ---------- */
+  function buildOverlay(t) {
+    const regs = D.regions.filter(r => state.sel.has(r)); if (!regs.length) return null;
+    return {
+      animation: false, grid: GRID, xAxis: timeAxis(t), yAxis: valAxis(t, symY),
+      tooltip: tip(t, axisTip(v => fmtSigned(v))),
+      series: regs.map((r, j) => {
+        const c = t.cats[D.regions.indexOf(r)];
+        return { name: r, type: 'line', showSymbol: false, symbolSize: 8, sampling: 'lttb', emphasis: { disabled: true },
+          lineStyle: { width: 2, color: c }, itemStyle: { color: c, borderColor: t.surface, borderWidth: 2 },
+          data: seriesOf(D.dates, D.composite[r]), markLine: j === 0 ? zeroLine(t) : undefined };
+      }),
+    };
+  }
+  function drawOverlay() { $('#ov-empty').hidden = state.sel.size > 0; redraw($('#ch-overlay')); }
+  function renderChips() {
+    const c = $('#chips'); c.textContent = '';
+    D.regions.forEach(r => {
+      const b = el('button', 'chip'); b.type = 'button'; b.setAttribute('aria-pressed', String(state.sel.has(r)));
+      const k = el('span', 'lk'); b.style.setProperty('--c', catVar(r));
+      b.append(k, el('span', 'chip-code', r), el('span', 'chip-name', nameOf(r)));
+      b.addEventListener('click', () => {
+        if (state.sel.has(r)) state.sel.delete(r); else state.sel.add(r);
+        b.setAttribute('aria-pressed', String(state.sel.has(r))); drawOverlay();
+      });
+      c.append(b);
+    });
+    const all = el('button', 'linkbtn', 'Show all'); all.type = 'button';
+    all.addEventListener('click', () => { D.regions.forEach(r => state.sel.add(r)); renderChips(); drawOverlay(); });
+    const none = el('button', 'linkbtn', 'Clear'); none.type = 'button';
+    none.addEventListener('click', () => { state.sel.clear(); renderChips(); drawOverlay(); });
+    c.append(all, none);
+  }
+
+  /* ---------- region detail ---------- */
+  function selectRegion(r, scroll) {
+    state.region = r; store.set('region', r); markCurrent();
+    $('#picker').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.r === r)));
+    renderDeep();
+    if (scroll) $('#region').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  }
+  function renderPicker() {
+    const p = $('#picker'); p.textContent = '';
+    D.regions.forEach(r => {
+      const b = el('button', null, r); b.type = 'button'; b.dataset.r = r; b.title = nameOf(r);
+      b.setAttribute('aria-pressed', String(r === state.region)); b.setAttribute('aria-label', nameOf(r));
+      b.addEventListener('click', () => selectRegion(r, false)); p.append(b);
+    });
+  }
+  function renderDeep() {
+    const r = state.region; const S = D.summary.find(s => s.region === r);
+    const comps = D.components.filter(c => c.region === r);
+    $('#dd-title').textContent = S.name;
+    $('#dd-sub').textContent = `Composite built from ${comps.length} input${comps.length === 1 ? '' : 's'}` +
+      (S.fxOnly ? ', currently exchange-rate only.' : '.');
+
+    const figs = $('#dd-figs'); figs.textContent = '';
+    const fig = (l, v, sub) => { const f = el('div', 'fig'); f.append(el('span', 'l', l)); if (typeof v === 'string') f.append(el('span', 'v', v)); else f.append(v); if (sub) f.append(sub); return f; };
+    const zv = el('span', 'v num', fmtSigned(S.z));
+    figs.append(
+      fig('Liquidity score', zv, pill(S.regime)),
+      fig('13-week momentum', fmtSigned(S.mom), el('span', 's', S.mom == null ? '' : S.mom >= 0 ? 'Moving easier' : 'Moving tighter')),
+      fig('Leads equities?', S.corr == null ? '—' : fmtSigned(S.corr),
+        el('span', 's', S.corr == null ? 'No equity index to compare' : `${cap(S.corrWord)} link to the next ${D.params.leadWeeks} weeks' ${S.equity} return`)));
+    $('#dd-read').innerHTML = mdInline(S.narrative);
+
+    mount($('#ch-comp'), t => buildPolarity(t, D.dates, D.composite[r], r + ' composite', false));
+    const eqNode = $('#ch-eq');
+    if (D.equities[r]) {
+      $('#eq-title').textContent = `${S.equity}, index level`;
+      $('#eq-note').textContent = "Drawn on its own chart so the two scales can't suggest a fit that isn't there.";
+      eqNode.classList.remove('nochart');
+      mount(eqNode, t => buildLine(t, D.dates, D.equities[r], S.equity, t.ink2, v => fmtNum(v, 0), kAxis, false));
+    } else {
+      const rec = registry.get(eqNode); if (rec) { rec.ro.disconnect(); rec.inst.dispose(); registry.delete(eqNode); }
+      $('#eq-title').textContent = 'Equity index';
+      $('#eq-note').textContent = r === 'GLOBAL' ? 'The global overlay has no single equity index. Pick a region to compare.' : 'The equity index did not load in this snapshot.';
+      eqNode.textContent = ''; eqNode.classList.add('nochart'); eqNode.textContent = 'No equity series for this view.';
+    }
+
+    renderCompTable(comps);
+    renderMinis(comps);
+  }
+  function statusBadge(c) {
+    if (c.status === 'live' || !c.lastObs) return null;
+    if (c.status === 'lagged') return el('span', 'badge', 'Last print ' + fmtDate(c.lastObs));
+    return el('span', 'badge dead', 'Discontinued, last ' + fmtMonth(c.lastObs));
+  }
+  function renderCompTable(comps) {
+    const tbl = $('#ctbl'); tbl.textContent = '';
+    const wsum = comps.reduce((a, c) => a + c.weight, 0) || 1;
+    const thead = el('thead'); const hr = el('tr');
+    [['Input'], ['Latest', 'r'], [`${D.params.momWeeks}-week change`, 'r'], ['Signal (z)', 'r'], ['Weight', 'r'], ['Higher means']].forEach(([h, c]) => hr.append(el('th', c || null, h)));
+    thead.append(hr); tbl.append(thead);
+    const tb = el('tbody');
+    comps.forEach(c => {
+      const tr = el('tr');
+      const n = el('td'); n.append(el('div', 't-name', c.label));
+      const meta = el('div', 't-meta'); meta.append(el('span', 'mono', `${c.source} · ${c.id}`));
+      const b = statusBadge(c); if (b) meta.append(b);
+      n.append(meta);
+      const z = el('td', 'r'); z.append(heat(c.zLast));
+      tr.append(n, el('td', 'r num', fmtInput(c.input, c.unit)), el('td', 'r num', fmtChg(c.inputChg, c.unit)), z,
+        el('td', 'r num', Math.round(c.weight / wsum * 100) + '%'), el('td', null, c.sign > 0 ? 'Easier' : 'Tighter'));
+      tb.append(tr);
+    });
+    tbl.append(tb);
+  }
+  function renderMinis(comps) {
+    const box = $('#minis'); unmountIn(box);
+    comps.forEach(c => {
+      const m = el('div', 'mini'); const h = el('div', 'mini-h');
+      h.append(el('b', null, c.label), el('span', 'num', state.cview === 'z' ? 'z ' + fmtSigned(c.zLast) : fmtInput(c.input, c.unit)));
+      const ch = el('div', 'chart sm'); m.append(h, ch); box.append(m);
+      if (state.cview === 'z') mount(ch, t => buildPolarity(t, D.dates, c.z, c.label, true));
+      else mount(ch, t => buildLine(t, D.dates, c.inp, c.label, t.accent, v => fmtInput(v, c.unit), kAxis, true));
+    });
+  }
+
+  /* ---------- fed balance sheet ---------- */
+  const FED = [
+    ['Net Liquidity', 'Net liquidity', true, 'Assets − TGA − RRP'],
+    ['Fed Total Assets', 'Fed total assets', true, 'WALCL'],
+    ['Reserve Balances', 'Bank reserves', true, 'WRESBAL'],
+    ['TGA', 'Treasury cash (TGA)', false, 'WTREGEN'],
+    ['RRP', 'Reverse repo (RRP)', false, 'RRPONTSYD'],
+  ];
+  function spark(vals) {
+    const pts = vals.filter(v => v != null); if (pts.length < 3) return null;
+    const W = 120, H = 30, pad = 3, min = Math.min(...pts), max = Math.max(...pts);
+    const xy = pts.map((v, i) => [i / (pts.length - 1) * W, max === min ? H / 2 : pad + (1 - (v - min) / (max - min)) * (H - 2 * pad)]);
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'spark'); svg.setAttribute('aria-hidden', 'true');
+    const line = (arr, color, w) => {
+      const p = document.createElementNS(NS, 'polyline');
+      p.setAttribute('points', arr.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' '));
+      p.setAttribute('fill', 'none');
+      p.setAttribute('style', `stroke:${color};stroke-width:${w};vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round`);
+      return p;
+    };
+    svg.append(line(xy.slice(0, -1), 'var(--muted)', 1.5), line(xy.slice(-2), 'var(--accent)', 2));
+    return svg;
+  }
+  function renderTiles() {
+    const box = $('#tiles'); box.textContent = '';
+    if (!D.fed) { box.append(el('p', 'empty', 'The Fed balance-sheet series need FRED data, which was not in this snapshot.')); return; }
+    const S = D.fed.series, L = D.fed.dates.length;
+    FED.forEach(([k, label, upGood, id], i) => {
+      const v = S[k][L - 1], d = S[k][L - 1] - S[k][L - 2];
+      const t = el('div', 'tile' + (i === 0 ? ' hero' : ''));
+      const flat = Math.abs(d) < 0.05;
+      const good = flat ? null : (d > 0) === upGood;
+      const dd = el('div', 'd ' + (flat ? 'flat' : good ? 'good' : 'bad'));
+      if (!flat) { const ic = el('span'); ic.innerHTML = d > 0 ? TRI.up : TRI.down; dd.append(ic); }
+      dd.append(document.createTextNode(flat ? 'Unchanged on the week'
+        : `${fmtSigned(d, Math.abs(d) < 10 ? 1 : 0)}bn on the week, ${good ? 'adds' : 'drains'} liquidity`));
+      t.append(el('span', 'l', label), el('span', 'v', bn(v)), dd);
+      const sp = spark(S[k].slice(-26)); if (sp) t.append(sp);
+      t.append(el('span', 'id', id));
+      box.append(t);
+    });
+  }
+  function wfValues() {
+    const F = D.fed, n = state.wf, L = F.dates.length; if (L <= n) return null;
+    const dl = k => F.series[k][L - 1] - F.series[k][L - 1 - n];
+    return { n, dA: dl('Fed Total Assets'), dT: dl('TGA'), dR: dl('RRP'), dN: dl('Net Liquidity') };
+  }
+  function buildWaterfall(t) {
+    const w = wfValues(); if (!w) return null;
+    const steps = [['Fed assets', w.dA, false], ['− TGA', -w.dT, false], ['− RRP', -w.dR, false], ['= Net liquidity', w.dN, true]];
+    const base = [], bars = []; let run = 0;
+    steps.forEach(([name, v, total]) => {
+      const lo = total ? Math.min(0, v) : Math.min(run, run + v);
+      if (!total) run += v;
+      base.push(lo);
+      bars.push({ value: Math.abs(v), name, signed: v,
+        itemStyle: { color: total ? t.ink2 : v >= 0 ? t.pos : t.neg, borderRadius: v >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4] },
+        label: { show: true, position: v >= 0 ? 'top' : 'bottom', formatter: fmtSigned(v, Math.abs(v) < 10 ? 1 : 0), color: t.ink, fontFamily: FONT, fontSize: 12, fontWeight: 600 } });
+    });
+    return {
+      animation: false, grid: { left: 56, right: 16, top: 28, bottom: 28 },
+      xAxis: { type: 'category', data: steps.map(s => s[0]), axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.ink2, fontFamily: FONT, fontSize: 12 } },
+      yAxis: valAxis(t, { scale: false, axisLabel: Object.assign(lbl(t), { formatter: v => fmtSigned(v, 0) }) }),
+      tooltip: tip(t, p => `<div class="tt-d">${esc(p.name)}</div><div class="tt-r"><b>${esc(fmtSigned(p.data.signed, 1))}bn</b><span>${p.dataIndex === 3 ? 'change in net liquidity' : 'effect on net liquidity'}</span></div>`, 'item'),
+      series: [
+        { type: 'bar', stack: 'wf', stackStrategy: 'all', silent: true, itemStyle: { color: 'transparent' }, barMaxWidth: 24, data: base, tooltip: { show: false } },
+        { type: 'bar', stack: 'wf', stackStrategy: 'all', barMaxWidth: 24, data: bars, markLine: zeroLine(t) },
+      ],
+    };
+  }
+  function wfCaption() {
+    const w = wfValues(); const c = $('#wf-cap'); if (!w) { c.textContent = ''; return; }
+    const per = { 1: 'week', 4: '4 weeks', 13: '13 weeks', 52: 'year' }[w.n];
+    const amt = v => '$' + fmtNum(Math.abs(v), Math.abs(v) < 10 ? 1 : 0) + 'bn';
+    const mv = v => Math.abs(v) < 0.05 ? 'was unchanged' : (v >= 0 ? 'rose ' : 'fell ') + amt(v);
+    const drivers = [['Fed assets', w.dA], ['the TGA', -w.dT], ['the RRP', -w.dR]].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    c.textContent = `Over the last ${per}, net liquidity ${mv(w.dN)}. Fed assets ${mv(w.dA)}, the Treasury's cash account ${mv(w.dT)}` +
+      ` and the reverse repo ${mv(w.dR)}. The biggest driver was ${drivers[0][0]}, which ${drivers[0][1] >= 0 ? 'added' : 'took out'} ${amt(drivers[0][1])}.`;
+  }
+  function renderFed() {
+    renderTiles();
+    if (!D.fed) { $('#ch-wf').closest('.panel').hidden = true; return; }
+    seg($('#wfh'), [[1, '1W'], [4, '4W'], [13, '13W'], [52, '52W']], state.wf, v => { state.wf = v; redraw($('#ch-wf')); wfCaption(); });
+    mount($('#ch-wf'), buildWaterfall); wfCaption();
+    const box = $('#fed-minis'); unmountIn(box);
+    FED.forEach(([k, label]) => {
+      const m = el('div', 'mini'); const h = el('div', 'mini-h');
+      const S = D.fed.series[k];
+      h.append(el('b', null, label), el('span', 'num', bn(S[S.length - 1])));
+      const ch = el('div', 'chart sm'); m.append(h, ch); box.append(m);
+      mount(ch, t => buildLine(t, D.fed.dates, S, label, t.accent, v => bn(v), bnAxis, true));
+    });
+  }
+
+  /* ---------- daily pulse ---------- */
+  function fmtPulse(v, unit) {
+    if (v == null) return '—';
+    switch (unit) {
+      case '$bn': return bn(v);
+      case 'bp': return fmtNum(v, 0) + ' bp';
+      case '%': return v.toFixed(2) + '%';
+      case 'pts': return v.toFixed(1);
+      default: return v.toFixed(2);
+    }
+  }
+  function fmtPulseChg(v, unit) {
+    if (v == null) return '—';
+    switch (unit) {
+      case '$bn': return (v < 0 ? MINUS : v > 0 ? '+' : '') + '$' + fmtNum(Math.abs(v), Math.abs(v) < 10 ? 1 : 0) + 'bn';
+      case 'bp': return fmtSigned(v, 0) + ' bp';
+      case '%': return fmtSigned(v * 100, 0) + ' bp';
+      case 'pts': return fmtSigned(v, 1);
+      default: return fmtSigned(v, 2);
+    }
+  }
+  function chgEl(v, it) {
+    const flat = v == null || Math.abs(v) < 1e-9;
+    const easier = !flat && (v * it.sign > 0);
+    const s = el('span', 'chg ' + (flat ? 'flat' : easier ? 'good' : 'bad'), fmtPulseChg(v, it.unit));
+    if (!flat) s.title = easier ? 'Moved easier' : 'Moved tighter';
+    return s;
+  }
+  function dayTip(fmt) {
+    return ps => {
+      const list = (Array.isArray(ps) ? ps : [ps]).filter(p => p.value && p.value[1] != null);
+      if (!list.length) return '';
+      return `<div class="tt-d">${esc(dateOf(list[0].value[0]))}</div>` + list.map(p =>
+        `<div class="tt-r"><span class="tt-k" style="background:${p.color}"></span><b>${esc(fmt(p.value[1]))}</b><span>${esc(p.seriesName)}</span></div>`).join('');
+    };
+  }
+  function renderPulse() {
+    const box = $('#pulse-body'); unmountIn(box);
+    const P = D.pulse;
+    if (!P) { box.append(el('p', 'empty', 'The daily pulse needs FRED and Yahoo Finance data, which was not in this snapshot.')); return; }
+    const figs = el('div', 'figs');
+    const fig = (l, v, sub) => { const f = el('div', 'fig'); f.append(el('span', 'l', l), el('span', 'v num', v)); if (sub) f.append(el('span', 's', sub)); figs.append(f); };
+    fig('Pulse score', fmtSigned(P.now), P.now >= 0 ? 'Easier than normal' : 'Tighter than normal');
+    fig('5-day change', fmtSigned(P.chg5), Math.abs(P.chg5) < 0.1 ? 'Little changed' : P.chg5 > 0 ? 'Moved easier' : 'Moved tighter');
+    fig('Latest day', fmtDate(P.asOf), `${P.items.length} daily inputs`);
+    const rd = el('p', 'dd-read'); rd.innerHTML = mdInline(P.narrative);
+    box.append(figs, rd);
+
+    const two = el('div', 'two');
+    const p1 = el('div', 'panel');
+    p1.append(el('p', 'chart-title', 'Pulse score, daily'), el('p', 'chart-note', 'Weighted blend of the inputs below. Blue above zero is easier than the 3-year norm; red below is tighter.'));
+    const c1 = el('div', 'chart'); p1.append(c1);
+    const p2 = el('div', 'panel');
+    p2.append(el('p', 'chart-title', 'Pulse vs the weekly US score'), el('p', 'chart-note', 'The pulse uses fast market data. The weekly US score uses slower balance-sheet and money data. A gap between the two lines shows a change the weekly data has not caught yet.'));
+    const c2 = el('div', 'chart'); p2.append(c2);
+    two.append(p1, p2); box.append(two);
+    mount(c1, t => { const o = buildPolarity(t, P.dates, P.score, 'Daily pulse', false); if (o) o.tooltip = tip(t, dayTip(v => fmtSigned(v))); return o; });
+    mount(c2, t => {
+      const a = seriesOf(P.dates, P.score);
+      const us = D.composite.US ? seriesOf(D.dates, D.composite.US).filter(p => p[0] >= P.dates[0]) : [];
+      if (!a.length) return null;
+      return {
+        animation: false, grid: Object.assign({}, GRID, { top: 30 }), xAxis: timeAxis(t), yAxis: valAxis(t, symY),
+        legend: { top: 0, right: 0, itemWidth: 14, itemHeight: 2, icon: 'rect', textStyle: { color: t.ink2, fontFamily: FONT, fontSize: 12 } },
+        tooltip: tip(t, dayTip(v => fmtSigned(v))),
+        series: [
+          { name: 'Daily pulse', type: 'line', showSymbol: false, sampling: 'lttb', lineStyle: { width: 1.5, color: t.accent }, itemStyle: { color: t.accent }, data: a, markLine: zeroLine(t) },
+          { name: 'Weekly US score', type: 'line', showSymbol: false, step: 'end', lineStyle: { width: 2, color: t.ink2 }, itemStyle: { color: t.ink2 }, data: us },
+        ],
+      };
+    });
+
+    const tp = el('div', 'panel'); tp.style.marginTop = '16px';
+    tp.append(el('p', 'chart-title', 'Daily inputs'), el('p', 'chart-note', 'Green changes moved conditions easier, red moved them tighter. The signal compares each input with its own 3-year daily history, signed so + means easier.'));
+    const wrap = el('div', 'tbl-wrap'); const tb = el('table');
+    tb.innerHTML = '<thead><tr><th>Input</th><th class="r">Latest</th><th class="r">1 day</th><th class="r">5 days</th><th class="r">Signal</th><th>Last print</th></tr></thead>';
+    const body = el('tbody');
+    P.items.forEach(it => {
+      const tr = el('tr');
+      const n = el('td'); n.append(el('div', 't-name', it.label));
+      const meta = el('div', 't-meta'); meta.append(el('span', 'mono', it.id), el('span', null, it.source));
+      if (it.score === 'chg20') meta.append(el('span', 'badge', 'signal = 20-day change'));
+      n.append(meta);
+      const td = (node, cls) => { const c = el('td', cls); c.append(node); return c; };
+      tr.append(n, td(el('span', null, fmtPulse(it.last, it.unit)), 'r num'), td(chgEl(it.d1, it), 'r'), td(chgEl(it.d5, it), 'r'),
+        td(heat(it.z), 'r'), td(el('span', null, fmtDate(it.lastObs)), 'num'));
+      body.append(tr);
+    });
+    tb.append(body); wrap.append(tb); tp.append(wrap);
+    const note = el('p', 'p-note');
+    note.textContent = (P.tga === 'daily'
+      ? `Daily net liquidity uses the Treasury's daily cash balance (latest ${fmtDate(P.tgaLast)}), daily RRP, and the weekly Fed total assets carried forward.`
+      : `Daily net liquidity uses daily RRP but the weekly TGA figure (latest ${fmtDate(P.tgaLast)}), because the Treasury's daily data could not be reached in this build. It still moves daily with RRP.`)
+      + ' Credit spreads and the real yield print one day late on FRED.';
+    tp.append(note); box.append(tp);
+
+    const minis = el('div', 'minis');
+    P.items.forEach(it => {
+      const m = el('div', 'mini'); const h = el('div', 'mini-h');
+      h.append(el('b', null, it.label), el('span', 'num', fmtPulse(it.last, it.unit)));
+      const ch = el('div', 'chart sm'); m.append(h, ch); minis.append(m);
+      mount(ch, t => {
+        const axisF = it.unit === '$bn' ? bnAxis : v => kAxis(v);
+        const o = buildLine(t, P.dates, it.raw, it.label, t.accent, v => fmtPulse(v, it.unit), axisF, true);
+        if (o) o.tooltip = tip(t, dayTip(v => fmtPulse(v, it.unit)));
+        return o;
+      });
+    });
+    box.append(minis);
+  }
+
+  /* ---------- regime map ---------- */
+  function buildQuad(t) {
+    const pts = D.summary.filter(s => s.z != null && s.mom != null); if (!pts.length) return null;
+    const m = Math.max(1.5, ...pts.map(p => Math.abs(p.z)), ...pts.map(p => Math.abs(p.mom)));
+    let lim = Math.max(2, Math.ceil(m * 1.15)), step = 1;
+    if (lim > 4) { step = 2; lim = 2 * Math.ceil(lim / 2); }
+    const ax = (name, gap) => ({ type: 'value', min: -lim, max: lim, interval: step, name, nameLocation: 'middle', nameGap: gap,
+      nameTextStyle: { color: t.muted, fontFamily: FONT, fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: Object.assign(lbl(t), { formatter: v => v === 0 ? '0' : fmtSigned(v, 0) }), splitLine: { lineStyle: { color: t.hair, width: 1 } } });
+    return {
+      animation: false, grid: { left: 48, right: 24, top: 16, bottom: 44 },
+      xAxis: ax('Liquidity level (z)', 28), yAxis: ax(`${D.params.momWeeks}-week momentum`, 32),
+      tooltip: tip(t, p => `<div class="tt-d">${esc(p.data.s.name)}</div><div class="tt-r"><b>${esc(p.data.s.regime)}</b></div><div class="tt-r">Level&nbsp;<b>${fmtSigned(p.data.s.z)}</b>momentum&nbsp;<b>${fmtSigned(p.data.s.mom)}</b></div>`, 'item'),
+      series: [{ type: 'scatter', symbolSize: 11, itemStyle: { color: t.ink2, borderColor: t.surface, borderWidth: 2 },
+        label: { show: true, position: 'right', distance: 6, formatter: p => p.data.s.region, color: t.ink, fontFamily: MONO, fontSize: 11 },
+        labelLayout: { moveOverlap: 'shiftY' },
+        /* a point with a close neighbour to its right takes its label on the left */
+        data: pts.map(s => ({ value: [s.z, s.mom], s, label: { position: pts.some(q => q !== s && q.z > s.z && q.z - s.z < 0.6 && Math.abs(q.mom - s.mom) < 0.45) ? 'left' : 'right' } })),
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: t.axis, width: 1, type: 'solid' }, data: [{ xAxis: 0 }, { yAxis: 0 }] } }],
+    };
+  }
+  function renderMapNotes() {
+    const box = $('#map-notes'); box.textContent = '';
+    const v = D.summary.filter(s => s.z != null && s.mom != null);
+    const groups = [['Easy & Improving', 'Easy and improving'], ['Easy & Fading', 'Easy but fading'], ['Tight & Improving', 'Tight but improving'], ['Tight & Deteriorating', 'Tight and deteriorating']];
+    const g = el('div'); g.append(el('h3', null, 'By quadrant')); const ul = el('ul');
+    groups.forEach(([key, label]) => {
+      const li = el('li'); li.append(pill(key)); const codes = el('span', 'codes');
+      const members = v.filter(s => s.regime === key);
+      if (members.length) members.forEach(s => codes.append(codeChip(s.region))); else codes.append(el('span', 'empty', 'none'));
+      li.append(codes); ul.append(li);
+    });
+    g.append(ul); box.append(g);
+    const near = v.slice().sort((a, b) => Math.abs(a.z) - Math.abs(b.z))[0];
+    const big = v.slice().sort((a, b) => Math.abs(b.mom) - Math.abs(a.mom))[0];
+    if (near) { const d = el('div'); d.append(el('h3', null, 'Closest to flipping'), el('p', null, `${near.name} sits at ${fmtSigned(near.z)}, the nearest to neutral. A small move would change its regime from ${near.z >= 0 ? 'easy to tight' : 'tight to easy'}.`)); box.append(d); }
+    if (big) { const d = el('div'); d.append(el('h3', null, 'Biggest 13-week move'), el('p', null, `${big.name}'s score ${big.mom >= 0 ? 'rose' : 'fell'} ${fmtNum(Math.abs(big.mom), 2)} over ${D.params.momWeeks} weeks, the largest shift of any region.`)); box.append(d); }
+  }
+
+  /* ---------- history ---------- */
+  function renderHistory() {
+    const tbl = $('#htbl'); tbl.textContent = '';
+    const thead = el('thead'); const hr = el('tr'); hr.append(el('th', null, 'Week ending'));
+    D.regions.forEach(r => hr.append(el('th', 'r', r))); thead.append(hr); tbl.append(thead);
+    const tb = el('tbody'); const n = D.dates.length;
+    for (let i = n - 1; i >= Math.max(0, n - 12); i--) {
+      const tr = el('tr'); tr.append(el('td', 'num', fmtDate(D.dates[i])));
+      D.regions.forEach(r => { const td = el('td', 'r'); td.append(heat(D.composite[r][i])); tr.append(td); });
+      tb.append(tr);
+    }
+    tbl.append(tb);
+    $('#copy-csv').addEventListener('click', () => {
+      const csv = ['week_ending,' + D.regions.join(',')].concat(D.dates.map((d, i) => d + ',' + D.regions.map(r => D.composite[r][i] ?? '').join(','))).join('\n');
+      const flash = $('#flash');
+      const fallback = () => { const ta = $('#csv-fallback'); ta.hidden = false; ta.value = csv; ta.focus(); ta.select(); flash.textContent = 'Copy was blocked. The text is selected below; press Ctrl+C.'; };
+      try {
+        navigator.clipboard.writeText(csv).then(() => { flash.textContent = `Copied ${D.dates.length} weeks.`; }, fallback);
+      } catch (e) { fallback(); }
+    });
+  }
+
+  /* ---------- method ---------- */
+  function renderMethod() {
+    const box = $('#method-body'); box.textContent = '';
+    const col = (title, nodes) => { const d = el('div'); d.append(el('h3', null, title)); nodes.forEach(n => d.append(n)); box.append(d); };
+    col('Why z-scores', [
+      el('p', null, `Each input is converted into how many standard deviations it sits from its own rolling ${Math.round(D.params.zWindow / 52)}-year average. Fed assets in trillions, policy rates in percent and volatility in index points cannot be averaged directly; once each is a z-score they share one scale and can be blended into a composite.`),
+      el('p', null, 'A z-score is not more accurate than the raw number. It trades the real units for comparability. The real units are in the "What\'s inside the score" table and the Fed balance-sheet section. Signs are flipped where needed so + always means easier, and scores are capped at ±3.'),
+    ]);
+    col('Regimes and momentum', [
+      el('p', null, `A region is easy when its composite is at or above zero and tight when it is below. Momentum is the change in the composite over ${D.params.momWeeks} weeks: improving if it has risen, fading or deteriorating if it has fallen.`),
+      el('p', null, `"Leads equities?" is the historical correlation between the composite and the region's equity return over the following ${D.params.leadWeeks} weeks. Weak numbers are normal: liquidity is one driver among several.`),
+    ]);
+    const notes = el('ul');
+    const fx = D.summary.filter(s => s.fxOnly).map(s => s.name);
+    if (fx.length) notes.append(el('li', null, `${fx.join(', ')} currently use exchange rates only. Their policy-rate and money-supply inputs come from a hand-updated file that doesn't yet have enough history.`));
+    D.components.filter(c => c.status === 'discontinued').forEach(c => notes.append(el('li', null, `${c.label} (${c.id}) stopped updating in ${fmtMonth(c.lastObs)} and is left out of the latest score.`)));
+    const lag = D.components.filter(c => c.status === 'lagged');
+    if (lag.length) notes.append(el('li', null, `Released with a lag, so the latest reading is carried forward: ${lag.map(c => `${c.label} (${fmtDate(c.lastObs)})`).join(', ')}.`));
+    notes.append(el('li', null, `Readings are carried forward at most ${D.params.staleWeeks} weeks before an input drops out.`));
+    const fredIds = [...new Set(D.components.filter(c => c.source === 'FRED').map(c => c.id).concat(['WALCL', 'WTREGEN', 'WRESBAL', 'RRPONTSYD', 'ECBASSETSW', 'JPNASSETS']))].sort();
+    const yIds = [...new Set(D.components.filter(c => c.source === 'Yahoo').map(c => c.id))].sort();
+    const src = el('p', 'ids', 'FRED: ' + fredIds.join(' · ')); const src2 = el('p', 'ids', 'Yahoo: ' + yIds.join(' · '));
+    col('Data notes', [notes, src, src2]);
+  }
+
+  /* ---------- boot ---------- */
+  renderMeta();
+  seg($('#win'), Object.keys(WINDOWS).map(k => [k, k]), state.win, v => { state.win = v; store.set('win', v); redrawAll(); });
+  seg($('#cview'), [['z', 'Signal (z)'], ['input', 'Input (units)']], state.cview, v => { state.cview = v; renderMinis(D.components.filter(c => c.region === state.region)); });
+  renderLead(); renderBoard(); renderReads();
+  renderPulse();
+  renderChips(); mount($('#ch-overlay'), buildOverlay);
+  renderPicker(); renderDeep();
+  renderFed();
+  mount($('#ch-quad'), buildQuad); renderMapNotes();
+  renderHistory(); renderMethod();
+
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  if (mq.addEventListener) mq.addEventListener('change', redrawAll); else if (mq.addListener) mq.addListener(redrawAll);
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+})();
+</script>
