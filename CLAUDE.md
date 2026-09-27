@@ -21,7 +21,7 @@ matplotlib (Styler gradients) · xlsxwriter. Artifact front end: static HTML + E
 ## Two front ends, one engine
 | Front end | How it runs | Refresh |
 |---|---|---|
-| **Claude artifact** (owner's main view) | https://claude.ai/artifact/M93qEeNEJFiv8nreLXVBfa — private page on claude.ai | Scheduled Routine "Liquidity tracker daily rebuild": Tue–Sat 07:46 Kuala Lumpur. Each run starts a fresh cloud session and clones this repo (public, so no GitHub access is needed; a fresh routine session cannot attach a private repo). The TradingView connector is attached to the routine in the claude.ai Routines UI. Manual: `python build_artifact.py`, then republish `artifact/liquidity_tracker.html` to that URL (pass it as `url`; read the artifact first). Never create a second artifact. |
+| **Claude artifact** (owner's main view) | https://claude.ai/artifact/M93qEeNEJFiv8nreLXVBfa — private page on claude.ai | Scheduled Routine "Liquidity tracker daily rebuild": Tue–Sat 07:46 Kuala Lumpur. Each run clones or pulls this public repo (github.com/dkwhy8888/Global-Liquidity-Tracker-v2), so it works in a fresh routine session with no repo attached (a routine session cannot attach a private repo). The old private repo Global-Liquidity-Tracker is a frozen backup; develop here. The TradingView connector is attached to the routine in the claude.ai Routines UI. Manual: `python build_artifact.py`, then republish `artifact/liquidity_tracker.html` to that URL (pass it as `url`; read the artifact first). Never create a second artifact. |
 | **Streamlit** (local) | `run_dashboard.bat` on the owner's Windows PC → http://localhost:8501 | "Update now" button in the app |
 
 Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands in both.
