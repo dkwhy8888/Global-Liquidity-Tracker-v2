@@ -34,6 +34,7 @@ SCALE = {
     "KRM2": 1e12,    # KRW trn
     "EUM3": 1e9,     # EUR bn
     "JPM2": 1e12,    # JPY trn
+    "CNCRR": 1,      # %, reserve requirement ratio
 }
 
 # Level breaks (a one-month jump that is a definition change, not money leaving the

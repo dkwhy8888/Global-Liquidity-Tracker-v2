@@ -237,6 +237,18 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
 .chg.good { color: var(--delta-good); } .chg.bad { color: var(--delta-bad); } .chg.flat { color: var(--ink-2); }
 .p-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; max-width: 80ch; }
 
+/* changes + evidence */
+.changes { display: grid; gap: 8px; margin: -8px 0 20px; }
+.change { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 14px; background: var(--surface); border: 1px solid var(--hair); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 12px; }
+.change .arrow { color: var(--muted); }
+.vd { font: 500 12px/1 var(--sans); padding: 4px 7px; border-radius: 5px; white-space: nowrap; border: 1px solid var(--hair); }
+.vd.useful { background: color-mix(in oklab, var(--good) 18%, var(--surface)); border-color: color-mix(in oklab, var(--good) 45%, var(--hair)); }
+.vd.weak { background: color-mix(in oklab, var(--good) 7%, var(--surface)); }
+.vd.reverse { background: color-mix(in oklab, var(--serious) 16%, var(--surface)); border-color: color-mix(in oklab, var(--serious) 45%, var(--hair)); }
+.vd.none, .vd.short { color: var(--muted); }
+tr.grp td { background: var(--surface-2); font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-block: 7px; }
+tr.comp td { font-weight: 600; }
+
 /* chart tooltips (rendered by ECharts inside the page) */
 .tt-d { font: 600 11px/1.3 var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 .tt-r { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.65; }
@@ -256,7 +268,7 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
   <div class="bar-in">
     <div class="ctl"><span class="ctl-l" id="win-l">Chart window</span><div class="seg" id="win" role="group" aria-labelledby="win-l"></div></div>
     <nav class="jump" aria-label="Sections">
-      <a href="#read">The read</a><a href="#pulse">Daily pulse</a><a href="#overlay">All regions</a><a href="#region">Region detail</a><a href="#fed">Fed balance sheet</a><a href="#map">Regime map</a><a href="#history">History</a><a href="#method">How to read this</a>
+      <a href="#read">The read</a><a href="#pulse">Daily pulse</a><a href="#overlay">All regions</a><a href="#region">Region detail</a><a href="#fed">Fed balance sheet</a><a href="#map">Regime map</a><a href="#evidence">Does it lead?</a><a href="#history">History</a><a href="#method">How to read this</a>
     </nav>
   </div>
 </div>
@@ -265,6 +277,7 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
   <section id="read">
     <div class="sec-head"><div><h2>The read</h2><p class="sub">Where each market's liquidity sits against its own 3-year norm, and which way it's heading. Select a row for the detail.</p></div></div>
     <p class="lead" id="lead"></p>
+    <div class="changes" id="changes"></div>
     <div class="panel board" id="board"></div>
     <div class="reads" id="reads"></div>
   </section>
@@ -315,6 +328,13 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
       <div class="panel"><div class="quad-box"><div class="chart" id="ch-quad"></div><span class="q q-tl">Tight · improving</span><span class="q q-tr">Easy · improving</span><span class="q q-bl">Tight · deteriorating</span><span class="q q-br">Easy · fading</span></div></div>
       <div class="panel notes" id="map-notes"></div>
     </div>
+  </section>
+
+  <section id="evidence">
+    <div class="sec-head"><div><h2>Does it lead equities?</h2><p class="sub">A test of each score and input against the region's equity index return over the next 1, 3 and 6 months, from 2011. It shows which signals have helped in the past. It does not guarantee the future.</p></div></div>
+    <p class="dd-read" id="ev-read"></p>
+    <div class="panel tbl-wrap"><table id="evtbl"></table></div>
+    <p class="p-note" id="ev-note"></p>
   </section>
 
   <section id="history">
@@ -842,6 +862,57 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
     });
   }
 
+  /* ---------- changes ---------- */
+  function renderChanges() {
+    const box = $('#changes'); box.textContent = '';
+    (D.changes || []).forEach(c => {
+      const d = el('div', 'change');
+      d.append(codeChip(c.region), el('b', null, c.name), pill(c.from), el('span', 'arrow', '→'), pill(c.to), el('span', 'arrow', c.when));
+      box.append(d);
+    });
+  }
+
+  /* ---------- evidence (backtest) ---------- */
+  const VERDICT = {
+    'useful': ['useful', 'Useful lead'],
+    'weak but consistent': ['weak', 'Weak, consistent'],
+    'works in reverse': ['reverse', 'Works in reverse'],
+    'no reliable link': ['none', 'No reliable link'],
+    'too little history': ['short', 'Too little history'],
+  };
+  function renderEvidence() {
+    const BT = D.backtest; const tb = $('#evtbl'); tb.textContent = '';
+    if (!BT) { $('#ev-read').textContent = 'The backtest did not run in this build.'; return; }
+    const rows = BT.rows;
+    const comps = rows.filter(r => r.key === 'COMPOSITE');
+    const good = rows.filter(r => r.key !== 'COMPOSITE' && (r.verdict === 'useful' || r.verdict === 'weak but consistent')).sort((a, b) => b.ic13 - a.ic13);
+    const rev = rows.filter(r => r.ic13 != null && r.ic13 <= -0.1);
+    const compGood = comps.filter(r => r.verdict === 'useful' || r.verdict === 'weak but consistent');
+    const nm = r => `${r.label} (${r.region === 'GLOBAL' ? 'Global' : r.region})`;
+    $('#ev-read').innerHTML = mdInline(
+      `**${compGood.length} of ${comps.length}** composite scores show a consistent lead on equities over 3 months. ` +
+      (good.length ? `The inputs with the best record are **${good.slice(0, 4).map(nm).join(', ')}**: mostly money-supply and balance-sheet growth. ` : '') +
+      (rev.length ? `Stress and currency signals (for example ${rev.slice(0, 3).map(nm).join(', ')}) tend to work in reverse: high stress came before better returns, so read them as a contrarian sign at extremes, not as a sell signal.` : ''));
+    const head = el('thead'); head.innerHTML = '<tr><th>Signal</th><th class="r">1 month</th><th class="r">3 months</th><th class="r">6 months</th><th class="r">Holds in both halves?</th><th class="r">3m return when easy / tight</th><th>Verdict</th></tr>';
+    const body = el('tbody');
+    const icCell = v => { const td = el('td', 'r'); td.append(heat(v == null ? null : v * 3, 2)); if (v != null) td.lastChild.textContent = fmtSigned(v, 2); return td; };
+    D.regions.forEach(reg => {
+      const rr = rows.filter(r => r.region === reg); if (!rr.length) return;
+      const g = el('tr', 'grp'); const gc = el('td', null, `${nameOf(reg)} · vs ${rr[0].target === 'World (equal-weight)' ? 'average of the 7 equity indices' : (D.summary.find(s => s.region === reg) || {}).equity || reg}`); gc.colSpan = 7; g.append(gc); body.append(g);
+      rr.forEach(r => {
+        const tr = el('tr', r.key === 'COMPOSITE' ? 'comp' : '');
+        const n = el('td'); n.append(el('div', 't-name', r.label)); if (r.start) n.append(el('div', 't-meta', 'from ' + r.start));
+        const both = el('td', 'r num', r.h1 == null || r.h2 == null ? '—' : (Math.sign(r.h1) === Math.sign(r.h2) ? 'Yes' : 'No') + ` (${fmtSigned(r.h1, 2)} / ${fmtSigned(r.h2, 2)})`);
+        const pc = v => v == null ? '—' : fmtSigned(v, 1) + '%';
+        const ret = el('td', 'r num', `${pc(r.retEasy)} / ${pc(r.retTight)}`);
+        const V = VERDICT[r.verdict] || ['none', r.verdict]; const vd = el('td'); vd.append(el('span', 'vd ' + V[0], V[1]));
+        tr.append(n, icCell(r.ic4), icCell(r.ic13), icCell(r.ic26), both, ret, vd); body.append(tr);
+      });
+    });
+    tb.append(head, body);
+    $('#ev-note').textContent = 'Numbers are rank correlations (−1 to +1) between the signal and the later equity return, measured on non-overlapping periods. Above +0.10 is a meaningful lead for macro data. "Useful" needs +0.10 or more at 3 months, a t-statistic of 2 or more, and the same sign in both halves of the history. Inputs from TradingView start in 2018–19, so their record is short. With about 40 signals tested, one or two can pass by chance.';
+  }
+
   /* ---------- daily pulse ---------- */
   function fmtPulse(v, unit) {
     if (v == null) return '—';
@@ -1046,13 +1117,13 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
   renderMeta();
   seg($('#win'), Object.keys(WINDOWS).map(k => [k, k]), state.win, v => { state.win = v; store.set('win', v); redrawAll(); });
   seg($('#cview'), [['z', 'Signal (z)'], ['input', 'Input (units)']], state.cview, v => { state.cview = v; renderMinis(D.components.filter(c => c.region === state.region)); });
-  renderLead(); renderBoard(); renderReads();
+  renderLead(); renderChanges(); renderBoard(); renderReads();
   renderPulse();
   renderChips(); mount($('#ch-overlay'), buildOverlay);
   renderPicker(); renderDeep();
   renderFed();
   mount($('#ch-quad'), buildQuad); renderMapNotes();
-  renderHistory(); renderMethod();
+  renderHistory(); renderMethod(); renderEvidence();
 
   const mq = matchMedia('(prefers-color-scheme: dark)');
   if (mq.addEventListener) mq.addEventListener('change', redrawAll); else if (mq.addListener) mq.addListener(redrawAll);

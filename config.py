@@ -33,9 +33,9 @@ STALE_WEEKS = 13      # carry a component's last reading forward at most this lo
 METRICS = [
     # ---------------- GLOBAL overlay (the master layer) ----------------
     {"key": "fed_net_liquidity", "region": "GLOBAL", "bucket": "cb_balance",   "source": "derived", "id": "fed_net_liq",       "transform": "yoy",   "sign": +1, "weight": 2.0},
-    {"key": "g3_cb_assets_usd",  "region": "GLOBAL", "bucket": "cb_balance",   "source": "derived", "id": "g3_assets",         "transform": "yoy",   "sign": +1, "weight": 1.5},
-    {"key": "us_hy_oas",         "region": "GLOBAL", "bucket": "stress",       "source": "fred",    "id": "BAMLH0A0HYM2",      "transform": "level", "sign": -1, "weight": 1.0},
-    {"key": "us_ig_oas",         "region": "GLOBAL", "bucket": "stress",       "source": "fred",    "id": "BAMLC0A0CM",        "transform": "level", "sign": -1, "weight": 0.5},
+    {"key": "g4_cb_assets_usd",  "region": "GLOBAL", "bucket": "cb_balance",   "source": "derived", "id": "g4_assets",         "transform": "yoy",   "sign": +1, "weight": 1.5},  # Fed+ECB+BOJ+PBOC in USD
+    {"key": "global_m2_usd",     "region": "GLOBAL", "bucket": "money_credit", "source": "derived", "id": "global_m2",         "transform": "yoy",   "sign": +1, "weight": 1.5},  # US M2 + EU M3 + JP M2 + CN M2 in USD
+    {"key": "credit_baa",        "region": "GLOBAL", "bucket": "stress",       "source": "fred",    "id": "BAA10Y",            "transform": "level", "sign": -1, "weight": 1.0},  # Moody's Baa - 10y; FRED keeps only ~3y of ICE HY/IG OAS
     {"key": "nfci",              "region": "GLOBAL", "bucket": "stress",       "source": "fred",    "id": "NFCI",              "transform": "level", "sign": -1, "weight": 1.0},  # +NFCI = tighter
     {"key": "vix",               "region": "GLOBAL", "bucket": "stress",       "source": "yf",      "id": "^VIX",              "transform": "level", "sign": -1, "weight": 0.75},
     {"key": "move",              "region": "GLOBAL", "bucket": "stress",       "source": "yf",      "id": "^MOVE",             "transform": "level", "sign": -1, "weight": 0.75},
@@ -88,7 +88,7 @@ METRICS = [
     {"key": "cn_loan_growth", "region": "CN", "bucket": "money_credit", "source": "tv", "id": "CNLG",     "transform": "level", "sign": +1, "weight": 1.0},  # already % YoY
     {"key": "cn_tsf_yoy", "region": "CN", "bucket": "money_credit", "source": "manual", "id": "cn_tsf_yoy", "transform": "level", "sign": +1, "weight": 1.5},
     {"key": "cn_3m_rate", "region": "CN", "bucket": "rates",        "source": "fred",   "id": "IR3TIB01CNM156N", "transform": "level", "sign": -1, "weight": 1.0},  # 3m interbank (OECD via FRED)
-    {"key": "cn_rrr",     "region": "CN", "bucket": "rates",        "source": "manual", "id": "cn_rrr",     "transform": "level", "sign": -1, "weight": 1.0},  # higher RRR = tighter
+    {"key": "cn_rrr",     "region": "CN", "bucket": "rates",        "source": "tv",     "id": "CNCRR",      "transform": "level", "sign": -1, "weight": 1.0},  # higher RRR = tighter (TradingView)
     {"key": "usdcny",     "region": "CN", "bucket": "fx",           "source": "yf",     "id": "USDCNY=X",   "transform": "level", "sign": -1, "weight": 0.5},
     {"key": "csi300",     "region": "CN", "bucket": "equity_index", "source": "yf",     "id": "000300.SS",  "transform": "level", "sign": +1, "weight": 0.0},
 ]

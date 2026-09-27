@@ -141,6 +141,23 @@ def derived_series(fred, mkt):
         out["g3_assets"] = pd.concat([fed, ecb, boj], axis=1).ffill().dropna().sum(axis=1)
     except Exception as e:
         print("  derived g3_assets FAILED (skips ECB/BOJ if ids missing):", e)
+    # G4 = G3 + PBOC (TradingView CNCBBS, CNY bn), USD mn. Starts 2018 (PBOC history).
+    try:
+        pboc = to_weekly(EC.load("CNCBBS")) * 1000.0 / to_weekly(mkt["USDCNY=X"])
+        g3 = out["g3_assets"]
+        out["g4_assets"] = pd.concat([g3, pboc], axis=1).ffill().dropna().sum(axis=1)
+    except Exception as e:
+        print("  derived g4_assets FAILED:", e)
+    # Global broad money in USD bn: US M2 + euro-area M3 + Japan M2 + China M2.
+    try:
+        eur, jpy, cny = (to_weekly(mkt[t]) for t in ("EURUSD=X", "USDJPY=X", "USDCNY=X"))
+        parts = [to_weekly(fred["M2SL"]),                         # $bn
+                 to_weekly(EC.load("EUM3")) * eur,                  # EUR bn -> $bn
+                 to_weekly(EC.load("JPM2")) * 1000.0 / jpy,         # JPY trn -> $bn
+                 to_weekly(EC.load("CNM2")) / cny]                  # CNY bn -> $bn
+        out["global_m2"] = pd.concat(parts, axis=1).ffill().dropna().sum(axis=1)
+    except Exception as e:
+        print("  derived global_m2 FAILED:", e)
     # Bank reserves as % of nominal GDP (reserve scarcity). WRESBAL $mn, GDP $bn SAAR.
     try:
         res = to_weekly(fred["WRESBAL"]) / 1000.0
@@ -200,9 +217,9 @@ def _series_for(m, fred, mkt, man, deriv):
 def build_dataset(start="2010-01-01"):
     fred_ids = sorted({m["id"] for m in C.METRICS if m["source"] == "fred"}
                       | {"WALCL", "WTREGEN", "RRPONTSYD", "WRESBAL", "ECBASSETSW", "JPNASSETS",
-                         "GDP", "SOFR", "IORB", "IOER"})
+                         "GDP", "SOFR", "IORB", "IOER", "M2SL"})
     yf_ids   = sorted({m["id"] for m in C.METRICS if m["source"] == "yf"}
-                      | {"EURUSD=X", "USDJPY=X"})
+                      | {"EURUSD=X", "USDJPY=X", "USDCNY=X"})
 
     print("Fetching FRED ...");    fred = fetch_fred(fred_ids, start)
     print("Fetching market ...");  mkt  = fetch_yf(yf_ids, start)

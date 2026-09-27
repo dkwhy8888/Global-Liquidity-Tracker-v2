@@ -6,3 +6,4 @@ xlsxwriter
 streamlit
 plotly
 matplotlib
+pytest

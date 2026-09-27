@@ -61,6 +61,13 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   supply (today `000300.SS` CSI 300, sourced from TradingView `SSE:000300` weekly bars).
   `tracker.fetch_yf()` uses the file when yfinance returns <30 rows. Refresh:
   TradingView `get_ohlcv` → `python market_fallback.py merge 000300.SS <bars.json>`.
+- **backtest.py** — does each signal lead equities? Spearman IC of signed z vs forward
+  4/13/26-week log returns (region index; GLOBAL vs equal-weight average), non-overlapping
+  samples averaged over start offsets, stability across halves, verdict per signal. Feeds
+  the page section "Does it lead equities?". Run: `python backtest.py`.
+- **tests/test_invariants.py** — pytest on synthetic data for the invariants below
+  (z clip, YoY, weekly ffill, sign, regime, composite, econ_cache break/merge, backtest).
+  Run `pytest -q` before pushing.
 - **build_artifact.py** — runs the engine and injects JSON into `artifact/template.html`,
   writing `artifact/liquidity_tracker.html` (build output, gitignored).
 - **artifact/template.html** — the artifact's design and JS (edit layout here, never the
@@ -116,6 +123,17 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
 - Communication: emoji section headers, tables over prose, plain English, minimal
   citations. Ask before changing a sign or weight, or committing proprietary files.
 
+## Backtest findings (Sep 2026) — read before changing weights
+- **No region composite** has a reliable 3-month lead on its equity index (IC ≈ 0).
+- **Quantity signals lead; price/stress signals do not.** Useful: Global M2 in USD (IC13
+  +0.49, t 2.8), G4 CB assets in USD (+0.44), HK M2 (+0.40), KR 3m rate (+0.30). Weak but
+  consistent: US M2, EU M3, JP M2, KR M2, Fed net liquidity, HIBOR.
+- Stress/FX inputs (VIX, Baa spread, USD, USD/KRW, USD/CNY, swap lines) tend to work in
+  reverse (high stress → better later returns): contrarian at extremes.
+- TradingView inputs start 2018–19, so their record is short; ~40 signals tested, so 1–2
+  passes can be chance. Proposed next step (owner to approve — it changes weights): split
+  each region into a "liquidity impulse" score (quantities) and a "market stress" score.
+
 ## Open tasks (roughly prioritized)
 1. ~~Cloud + scheduled refresh~~ **Done** (Routine, Tue–Sat 07:46 KL). Daily TGA needs
    `api.fiscaldata.treasury.gov` allowed in the cloud environment's network settings; until
@@ -132,13 +150,18 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
    **reserves/GDP** to flag tightness before it reaches net liquidity.
 4. **Replace manual and dead inputs.** Done via TradingView/FRED: EU M3, JP M2, HK M2,
    HIBOR, SG M2, KR M2, KR/CN 3m interbank (FRED `IR3TIB01KRM156N`, `IR3TIB01CNM156N`).
-   Still missing: HK Aggregate Balance, SORA (TradingView `SGINBR` is empty).
+   China RRR from TradingView `CNCRR`. Still missing: HK Aggregate Balance, SORA (no
+   TradingView series).
 5. **Auto-source China.** Done: M2, PBOC assets, loan growth, 3m interbank. Still missing:
    TSF + credit impulse (12m ΔTSF flow / GDP), RRR. CSI 300 now comes from TradingView via `market_fallback/` (yfinance `000300.SS` returns 1 row).
-6. **Extend the global aggregate.** Add PBOC to G3 → G4 CB assets; add JPY/EUR
-   cross-currency basis as a USD-funding-stress signal.
+6. ~~Extend the global aggregate~~ **Done**: G4 CB assets (with PBOC) and Global M2 in USD
+   replace G3; Baa − 10y (FRED `BAA10Y`) replaces HY/IG OAS in the weekly GLOBAL score (FRED
+   keeps only ~3y of ICE OAS; the daily pulse still uses HY/IG). JPY/EUR cross-currency
+   basis needs a paid feed.
 7. **Extend the driver waterfall beyond the US** where data allows (US done).
-8. **Tests.** A `pytest` suite on synthetic data for the invariants above.
+8. ~~Tests~~ **Done** (`tests/`).
+9. **Regime-change alerts.** `build_artifact.py` prints `CHANGE:` lines and the page shows
+   them under the headline; the routine repeats them in its summary.
 
 ## Known gotchas (already solved — keep solved)
 - Missing FRED key must not `sys.exit`: FRED is skipped and both front ends say so.

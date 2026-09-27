@@ -15,6 +15,7 @@ from datetime import datetime
 import pandas as pd
 
 import config as C
+import backtest as B
 import narrative as N
 import pulse as P
 import tracker as T
@@ -31,6 +32,8 @@ EQUITY_NAMES = {"US": "S&P 500", "EU": "Euro Stoxx 50", "JP": "Nikkei 225",
                 "CN": "CSI 300"}
 LABELS = {
     "fed_net_liquidity": "Fed net liquidity", "g3_cb_assets_usd": "G3 central-bank assets",
+    "g4_cb_assets_usd": "G4 central-bank assets (USD)", "global_m2_usd": "Global M2 (USD)",
+    "credit_baa": "Baa corporate spread",
     "us_hy_oas": "US high-yield spread", "us_ig_oas": "US investment-grade spread",
     "nfci": "Chicago Fed financial conditions", "vix": "VIX (equity volatility)",
     "move": "MOVE (bond volatility)", "broad_usd": "Broad US dollar index",
@@ -49,7 +52,7 @@ LABELS = {
     "cn_3m_rate": "China 3m interbank rate",
 }
 # unit of the series the model actually scores; yoy transforms are always "% YoY"
-LEVEL_UNITS = {"us_hy_oas": "%", "us_ig_oas": "%", "nfci": "index", "vix": "pts",
+LEVEL_UNITS = {"credit_baa": "%", "us_hy_oas": "%", "us_ig_oas": "%", "nfci": "index", "vix": "pts",
                "move": "pts", "broad_usd": "index", "us_fed_funds": "%", "us_2s10s": "pp",
                "hk_agg_balance": "HK$bn", "hibor_3m": "%", "sora": "%", "kr_base_rate": "%",
                "cn_7d_repo": "%", "cn_rrr": "%", "cn_credit_impulse": "% GDP",
@@ -64,6 +67,8 @@ PULSE_LABELS = {"net_liq_daily": "US net liquidity (daily est.)", "sofr_iorb": "
 PULSE_IDS = {"net_liq_daily": "WALCL − TGA − RRPONTSYD", "sofr_iorb": "SOFR − IORB"}
 DERIVED_IDS = {"fed_net_liq": "WALCL − WTREGEN − RRPONTSYD",
                "g3_assets": "WALCL + ECBASSETSW + JPNASSETS",
+               "g4_assets": "G3 + PBOC (CNCBBS)",
+               "global_m2": "M2SL + EUM3 + JPM2 + CNM2",
                "reserves_gdp": "WRESBAL / GDP", "sofr_iorb_w": "SOFR − IORB"}
 
 
@@ -131,6 +136,42 @@ def pulse_payload():
         "zDays": C.PULSE_Z_DAYS,
         "items": items,
     }
+
+
+def changes_payload(ds):
+    """Regime changes: this week vs last week, and vs 4 weeks ago."""
+    comp, mom = ds["composite"].dropna(how="all"), ds["momentum"]
+    out = []
+    for r in [c for c in C.REGIONS if c in comp.columns]:
+        def reg(i):
+            if len(comp) < abs(i):
+                return "n/a"
+            return T.regime_label(comp[r].iloc[i], mom[r].reindex(comp.index).iloc[i])
+        now, wk, mo = reg(-1), reg(-2), reg(-5)
+        if now != wk:
+            out.append({"region": r, "name": REGION_NAMES.get(r, r), "from": wk, "to": now, "when": "this week"})
+        elif now != mo:
+            out.append({"region": r, "name": REGION_NAMES.get(r, r), "from": mo, "to": now, "when": "in the last 4 weeks"})
+    return out
+
+
+def backtest_payload(ds):
+    try:
+        res = B.run(ds)
+    except Exception as e:
+        print("  backtest FAILED:", e)
+        return None
+    rows = []
+    for _, r in res.iterrows():
+        rows.append({
+            "region": r["region"], "key": r["signal"],
+            "label": "Composite score" if r["signal"] == "COMPOSITE" else LABELS.get(r["signal"], r["signal"]),
+            "ic4": _num(r["ic_4w"], 2), "ic13": _num(r["ic_13w"], 2), "ic26": _num(r["ic_26w"], 2),
+            "t13": _num(r["t_13w"], 1), "h1": _num(r["ic13_first_half"], 2), "h2": _num(r["ic13_second_half"], 2),
+            "retEasy": _num(r["ret13_when_easy"], 1), "retTight": _num(r["ret13_when_tight"], 1),
+            "start": r["start"], "verdict": r["verdict"], "target": r["target"],
+        })
+    return {"rows": rows, "horizons": list(B.HORIZONS)}
 
 
 def build():
@@ -211,7 +252,13 @@ def build():
         "components": comps,
         "fed": fed,
         "pulse": pulse_payload(),
+        "changes": changes_payload(ds),
+        "backtest": backtest_payload(ds),
     }
+    for c in payload["changes"]:
+        print(f"CHANGE: {c['name']} moved from {c['from']} to {c['to']} {c['when']}")
+    if not payload["changes"]:
+        print("CHANGE: no regime changes in the last 4 weeks")
     blob = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     with open(TEMPLATE, encoding="utf-8") as f:
         html = f.read()
