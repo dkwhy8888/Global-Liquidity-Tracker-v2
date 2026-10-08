@@ -15,8 +15,8 @@ from datetime import datetime
 import pandas as pd
 
 import config as C
-import backtest as B
 import narrative as N
+import predictive as PR
 import pulse as P
 import tracker as T
 
@@ -155,24 +155,14 @@ def changes_payload(ds):
     return out
 
 
-def backtest_payload(ds):
+def evidence_payload(ds):
+    """Does the liquidity score predict (or follow) equity-index returns? Point-in-time test."""
     try:
-        res = B.run(ds)
+        res = PR.analyze(ds["pit"], PR.fetch_indices())
+        return PR.payload(res)
     except Exception as e:
-        print("  backtest FAILED:", e)
+        print("  evidence FAILED:", repr(e))
         return None
-    rows = []
-    for _, r in res.iterrows():
-        rows.append({
-            "region": r["region"], "key": r["signal"],
-            "label": {"COMPOSITE": "Liquidity impulse score", "CONDITIONS": "Market conditions score"}.get(
-                r["signal"], LABELS.get(r["signal"], r["signal"])),
-            "ic4": _num(r["ic_4w"], 2), "ic13": _num(r["ic_13w"], 2), "ic26": _num(r["ic_26w"], 2),
-            "t13": _num(r["t_13w"], 1), "h1": _num(r["ic13_first_half"], 2), "h2": _num(r["ic13_second_half"], 2),
-            "retEasy": _num(r["ret13_when_easy"], 1), "retTight": _num(r["ret13_when_tight"], 1),
-            "start": r["start"], "verdict": r["verdict"], "target": r["target"],
-        })
-    return {"rows": rows, "horizons": list(B.HORIZONS)}
 
 
 def build():
@@ -249,6 +239,23 @@ def build():
         fed = {"dates": [d.strftime("%Y-%m-%d") for d in fb.index],
                "series": {c: [_num(v, 1) for v in fb[c].values] for c in fb.columns}}
 
+    evidence = evidence_payload(ds)
+    # per-region one-liner for the region detail: main index, lead and lag verdicts
+    ev_by = {}
+    if evidence:
+        byk = {i["key"]: i for i in evidence["indices"]}
+        for reg, k in C.PRIMARY_INDEX.items():
+            i = byk.get(k)
+            if not i or "impulse" not in i["score"]:
+                continue
+            f13, f26 = i["score"]["impulse"]["fwd"].get("13"), i["score"]["impulse"]["fwd"].get("26")
+            b26 = i["score"]["impulse"]["bwd"].get("26")
+            ev_by[reg] = {"key": k, "index": i["label"], "lead": i["lead"], "lag": i["lag"],
+                          "ic13": f13 and f13["ic"], "p13": f13 and f13["p"], "ic26": f26 and f26["ic"],
+                          "p26": f26 and f26["p"], "b26": b26 and b26["ic"], "bp26": b26 and b26["p"]}
+    for srow in summary:
+        srow["ev"] = ev_by.get(srow["region"])
+
     payload = {
         "asOf": as_of.strftime("%Y-%m-%d"),
         "builtAt": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -264,7 +271,7 @@ def build():
         "fed": fed,
         "pulse": pulse_payload(),
         "changes": changes_payload(ds),
-        "backtest": backtest_payload(ds),
+        "evidence": evidence,
     }
     for c in payload["changes"]:
         print(f"CHANGE: {c['name']} moved from {c['from']} to {c['to']} {c['when']}")

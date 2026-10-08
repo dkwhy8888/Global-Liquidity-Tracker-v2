@@ -61,12 +61,18 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   supply (today `000300.SS` CSI 300, sourced from TradingView `SSE:000300` weekly bars).
   `tracker.fetch_yf()` uses the file when yfinance returns <30 rows. Refresh:
   TradingView `get_ohlcv` → `python market_fallback.py merge 000300.SS <bars.json>`.
-- **backtest.py** — does each signal lead equities? Spearman IC of signed z vs forward
-  4/13/26-week log returns (region index; GLOBAL vs equal-weight average), non-overlapping
-  samples averaged over start offsets, stability across halves, verdict per signal. Feeds
-  the page section "Does it lead equities?". Run: `python backtest.py`.
+- **predictive.py** — does the score predict (forward) or follow (backward) each region's
+  equity indices? 21 indices from `config.INDICES` (several per region; TOPIX and ChiNext via
+  ETF proxies 1308.T / 159915.SZ), run on the **point-in-time** dataset `ds["pit"]`
+  (`build_dataset(pit=True)`: every series shifted by `config.LAG_DAYS` to its publication
+  date). Spearman IC vs forward/backward 4/13/26/52-week returns; p-values from phase-
+  randomised surrogate series (≈5–7% false positives on persistent random data); BH q-values
+  per (score, direction, horizon) across indices; split-half stability; lead–lag profile of
+  4-week changes; regime table; timing rule (hold when impulse ≥ 0). Feeds the dashboard's
+  "Does it predict?" tab. Run: `python predictive.py`.
 - **tests/test_invariants.py** — pytest on synthetic data for the invariants below
-  (z clip, YoY, weekly ffill, sign, regime, composite, econ_cache break/merge, backtest).
+  (z clip, YoY, weekly ffill, sign, regime, composite, econ_cache break/merge, point-in-time
+  shift, BH q-values, surrogate p-values, verdict rules, timing rule).
   Run `pytest -q` before pushing.
 - **build_artifact.py** — runs the engine and injects JSON into `artifact/template.html`,
   writing `artifact/liquidity_tracker.html` (build output, gitignored).
@@ -91,14 +97,17 @@ environment variable in cloud sessions). Never print, hardcode or commit it. The
 - **Z-score**: rolling `Z_WINDOW` weeks (default 156 ≈ 3y), clipped ±3.
 - **Sign**: +1 if higher = easier, −1 if tighter; applied *after* z-scoring so + always
   means easier.
-- **Two scores per region** (since Sep 2026, owner-approved, from the backtest):
+- **Two scores per region** (since Sep 2026, owner-approved; descriptive split, see findings):
   **liquidity impulse** = weighted mean of available signed-z components in
   `IMPULSE_BUCKETS` (cb_balance, money_credit) — this is `ds["composite"]`, the headline;
   **market conditions** = same over `CONDITIONS_BUCKETS` (rates, stress, fx) —
   `ds["conditions"]`. `ds["overall"]` keeps the old all-input score for reference.
 - **Regime**: quadrant from the impulse level (≥0 easy) × `MOM_WEEKS` impulse momentum.
-- **Lead/lag**: correlation of composite_t vs equity index return over the next
-  `LEAD_WEEKS`.
+- **Lead/lag**: `summary_table` reports the correlation of the point-in-time impulse vs the next
+  `LEAD_WEEKS` of the region's primary index (`PRIMARY_INDEX`). The full test is `predictive.py`.
+- **Point-in-time rule**: any test of predictive power must use `ds["pit"]`, never the live
+  composites. Monthly series carry the first day of their month but are published 1–2 months
+  later; using the live dating looks into the future and inflates every slow input.
 - All series resampled to weekly (W-FRI); monthly series forward-filled. The still-open
   week (bin dated after today) is dropped, and each component's signed z is carried
   forward at most `STALE_WEEKS` (13) past its last print, so release lags don't knock a
@@ -182,3 +191,20 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
   The waterfall needs `stackStrategy: 'all'` for floating bars below zero. No dual-axis
   charts (composite and equity index are separate charts).
 - Source files contain non-ASCII (emoji, −); open them with `encoding="utf-8"`.
+
+## Findings: does the score predict markets? (Oct 2026, point-in-time, 21 indices, 2011–2026)
+- **Forward**: no reliable lead. 0 of 21 indices at 3 and 6 months (q < 0.10) for the impulse;
+  0 of 21 at every horizon for market conditions. Typical correlation ≈ +0.07.
+- **Backward**: the impulse *follows* markets: 7 of 21 indices at 6 months (Nikkei, TOPIX, Hang
+  Seng, HSCE, KOSDAQ, ACWI, world). Market conditions follow strongly: 10 of 21 at 12 months.
+- **China**: negative forward sign at 6–12 months (about −0.3 to −0.4, p < 0.05, not after
+  correction). One stretch of policy history; do not trade on it.
+- **Regimes**: easy beat tight in 14 of 21 indices, none by a reliable margin. **Timing rule**
+  (hold when impulse ≥ 0): better return per risk in 10 of 21, smaller worst fall in 16, lower
+  total return in 17.
+- **Correction**: an earlier version (`backtest.py`, deleted) used live dating and reported that
+  the impulse led equities in 3 of 8 regions. That was look-ahead bias. Do not cite it.
+- **Limits**: in-sample (the input set and the impulse/conditions split were chosen with this
+  history in view); Asia history starts 2014–2018; M2/M3 are today's revised values; local-
+  currency price indices; HSTECH, STAR 50 not available.
+- The split and the weights are unchanged. Revisit them only with owner approval.

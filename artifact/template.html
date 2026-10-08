@@ -250,6 +250,34 @@ textarea#csv-fallback { width: 100%; margin-top: 10px; font: 12px/1.4 var(--mono
 tr.grp td { background: var(--surface-2); font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-block: 7px; }
 tr.comp td { font-weight: 600; }
 
+/* tabs + predictive-power tab */
+[hidden] { display: none !important; }
+.tabs button { font-weight: 600; }
+.p-body { max-width: 90ch; font-size: 15px; color: var(--ink-2); margin: 0 0 18px; }
+.verdicts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.vcard { background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.vcard .l { font: 600 11px/1.2 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.vcard .v { font: 600 28px/1.05 var(--sans); }
+.vcard .s { font-size: 13px; color: var(--ink-2); }
+@media (max-width: 1040px) { .verdicts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .verdicts { grid-template-columns: 1fr; } }
+.callout { background: var(--surface); border: 1px solid var(--hair); border-left: 3px solid var(--warning); border-radius: 0 10px 10px 0; padding: 11px 14px; font-size: 13.5px; color: var(--ink-2); max-width: 90ch; margin: 0 0 12px; }
+.callout b { color: var(--ink); }
+.scoretbl th.grp { text-align: center; border-bottom: 1px solid var(--hair); letter-spacing: .06em; }
+.scoretbl tr.idx { cursor: pointer; }
+.scoretbl tr.idx:hover td { background: var(--surface-2); }
+.scoretbl tr.idx[aria-selected="true"] td { background: color-mix(in oklab, var(--accent) 7%, var(--surface)); }
+@media (max-width: 560px) { .scoretbl .dates { display: none; } .scoretbl td:first-child { min-width: 120px; } }
+.scoretbl td.sep, .scoretbl th.sep { border-left: 1px solid var(--hair); }
+.mk { font-size: 10px; margin-left: 3px; color: var(--ink); vertical-align: 1px; }
+.vd.follow { background: color-mix(in oklab, var(--accent) 14%, var(--surface)); border-color: color-mix(in oklab, var(--accent) 40%, var(--hair)); }
+.sel { font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--surface); color: var(--ink); min-width: 0; max-width: 100%; }
+.sec-head > .ctl { max-width: 100%; }
+@media (max-width: 560px) { .sec-head > .ctl { width: 100%; } .sec-head > .ctl .sel { flex: 1; } }
+details.lagbox { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+details.lagbox summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+details.lagbox table { margin-top: 6px; font-size: 12.5px; }
+
 /* chart tooltips (rendered by ECharts inside the page) */
 .tt-d { font: 600 11px/1.3 var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 .tt-r { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.65; }
@@ -267,17 +295,17 @@ tr.comp td { font-weight: 600; }
 
 <div class="bar">
   <div class="bar-in">
-    <div class="ctl"><span class="ctl-l" id="win-l">Chart window</span><div class="seg" id="win" role="group" aria-labelledby="win-l"></div></div>
-    <nav class="jump" aria-label="Sections">
-      <a href="#read">The read</a><a href="#pulse">Daily pulse</a><a href="#overlay">All regions</a><a href="#region">Region detail</a><a href="#fed">Fed balance sheet</a><a href="#map">Regime map</a><a href="#evidence">Does it lead?</a><a href="#history">History</a><a href="#method">How to read this</a>
-    </nav>
+    <div class="seg tabs" id="tabs" role="group" aria-label="Page"></div>
+    <div class="ctl" id="win-ctl"><span class="ctl-l" id="win-l">Chart window</span><div class="seg" id="win" role="group" aria-labelledby="win-l"></div></div>
+    <nav class="jump" id="jump" aria-label="Sections"></nav>
   </div>
 </div>
 
-<main class="wrap">
+<main class="wrap" id="tab-main">
   <section id="read">
     <div class="sec-head"><div><h2>The read</h2><p class="sub">Where each market's liquidity sits against its own 3-year norm, and which way it's heading. Select a row for the detail.</p></div></div>
     <p class="lead" id="lead"></p>
+    <p class="p-note" id="read-note" style="margin:-10px 0 14px"></p>
     <div class="changes" id="changes"></div>
     <div class="panel board" id="board"></div>
     <div class="reads" id="reads"></div>
@@ -331,13 +359,6 @@ tr.comp td { font-weight: 600; }
     </div>
   </section>
 
-  <section id="evidence">
-    <div class="sec-head"><div><h2>Does it lead equities?</h2><p class="sub">A test of each score and input against the region's equity index return over the next 1, 3 and 6 months, from 2011. It shows which signals have helped in the past. It does not guarantee the future.</p></div></div>
-    <p class="dd-read" id="ev-read"></p>
-    <div class="panel tbl-wrap"><table id="evtbl"></table></div>
-    <p class="p-note" id="ev-note"></p>
-  </section>
-
   <section id="history">
     <div class="sec-head"><div><h2>Recent history</h2><p class="sub">Composite score by week for the last 12 weeks. Copy the full weekly history to paste into Excel.</p></div><div class="actions"><span class="flash" id="flash" role="status"></span><button class="btn" id="copy-csv" type="button">Copy full history (CSV)</button></div></div>
     <div class="panel tbl-wrap"><table class="htbl" id="htbl"></table></div>
@@ -347,6 +368,43 @@ tr.comp td { font-weight: 600; }
   <section id="method">
     <div class="sec-head"><div><h2>How to read this</h2></div></div>
     <div class="method" id="method-body"></div>
+  </section>
+</main>
+
+<main class="wrap" id="tab-predict" hidden>
+  <section id="p-answer">
+    <div class="sec-head"><div><h2>Does the liquidity score predict markets?</h2><p class="sub">Each region's liquidity score is tested against that region's equity indices (21 in all, since 2011). "Predict" means the score today lines up with the index return over the following weeks. "Follow" means it lines up with what the index already did.</p></div></div>
+    <p class="lead" id="p-lead"></p>
+    <p class="p-body" id="p-body"></p>
+    <div class="verdicts" id="p-cards"></div>
+    <div class="callout" id="p-hints"></div>
+    <div class="callout" id="p-fix"></div>
+  </section>
+
+  <section id="p-grid">
+    <div class="sec-head"><div><h2>Scorecard: every index</h2><p class="sub">Correlation between the score and the index return, from −1 to +1. Left block: the score against the NEXT return (predicts). Right block: the score against the PAST return (follows). Select a row for detail.</p></div><div class="seg" id="p-score" role="group" aria-label="Which score"></div></div>
+    <div class="panel tbl-wrap"><table class="scoretbl" id="sctbl"></table></div>
+    <p class="p-note" id="p-legend"></p>
+  </section>
+
+  <section id="p-detail">
+    <div class="sec-head"><div><h2 id="pd-title">Index detail</h2><p class="sub" id="pd-sub"></p></div><label class="ctl"><span class="ctl-l">Index</span><select class="sel" id="p-index" aria-label="Index"></select></label></div>
+    <div class="two">
+      <div class="panel"><p class="chart-title">Who moves first?</p><p class="chart-note">Correlation between a 4-week change in the score and the index's 4-week return, shifted by 0 to 24 weeks either way. Bars to the right of 0: the score moved first. Bars to the left: the market moved first. Dashed lines: the range chance alone could produce.</p><div class="chart" id="ch-prof"></div><p class="caption" id="prof-cap"></p></div>
+      <div class="panel"><p class="chart-title">Easy vs tight liquidity</p><p class="chart-note">Average index return over the 13 weeks after each reading, by the four regimes of the impulse score.</p><div class="tbl-wrap"><table id="regtbl"></table></div><p class="caption" id="reg-cap"></p></div>
+    </div>
+    <div class="panel" style="margin-top:16px"><p class="chart-title">A simple timing rule</p><p class="chart-note">Hold the index while the impulse score is at or above zero, hold cash otherwise. The signal is read on Friday and used the next week. No tuning, no costs, no dividends.</p><div class="chart" id="ch-timing"></div><div class="tbl-wrap"><table id="tmtbl"></table></div><p class="caption" id="tm-cap"></p></div>
+  </section>
+
+  <section id="p-inputs">
+    <div class="sec-head"><div><h2>Single inputs</h2><p class="sub">Each input of a region's score, tested against the region's main index. If one input had a real lead, a blended score could hide it.</p></div><div class="seg codes" id="pi-picker" role="group" aria-label="Region"></div></div>
+    <div class="panel tbl-wrap"><table id="intbl"></table></div>
+    <p class="p-note" id="pi-note"></p>
+  </section>
+
+  <section id="p-method">
+    <div class="sec-head"><div><h2>How the test works, and its limits</h2></div></div>
+    <div class="method" id="p-method-body"></div>
   </section>
 </main>
 <footer class="wrap foot" id="foot"></footer>
@@ -405,6 +463,7 @@ tr.comp td { font-weight: 600; }
     sel: new Set(D.regions),
     cview: 'z',
     wf: 1,
+    tab: 'main',
   };
 
   /* ---------- regimes ---------- */
@@ -589,7 +648,7 @@ tr.comp td { font-weight: 600; }
       item('Built', fmtDate(D.builtAt) + ', ' + D.builtAt.slice(11)),
       item('Daily pulse', D.pulse ? fmtDate(D.pulse.asOf) : '—'),
       item('Sources', 'FRED · Yahoo Finance · TradingView · US Treasury'),
-      el('span', null, 'Rebuilds automatically Tue–Sat, 08:00 Kuala Lumpur time.'));
+      el('span', null, 'Rebuilds automatically Tue–Sat, about 08:00 Kuala Lumpur time.'));
     $('#foot').textContent = `Global Liquidity Tracker · snapshot built ${fmtDate(D.builtAt)} from tracker.py and narrative.py · z-scores use a ${D.params.zWindow}-week rolling window`;
   }
   function seg(container, options, current, onPick) {
@@ -698,6 +757,16 @@ tr.comp td { font-weight: 600; }
       b.addEventListener('click', () => selectRegion(r, false)); p.append(b);
     });
   }
+  function evFig(ev, fig) {
+    const word = { leads: 'Yes', weak: 'Weak hint', reverse: 'Reverse sign', none: 'No', short: '—' }[ev.lead] || '—';
+    const sub = el('span', 's');
+    const bits = [`3-month correlation with the ${ev.index}: ${ev.ic13 == null ? '—' : fmtSigned(ev.ic13, 2)}.`];
+    if (ev.lag === 'follows') bits.push('It tends to follow the market.');
+    sub.append(document.createTextNode(bits.join(' ') + ' '));
+    const lb = el('button', 'linkbtn', 'See the evidence →'); lb.type = 'button'; lb.addEventListener('click', () => { if (ev.key) { pst.idx = ev.key; store.set('pidx', ev.key); } pst.built = false; showTab('predict', 'p-detail'); });
+    sub.append(lb);
+    return fig('Predicts equities?', word, sub);
+  }
   function renderDeep() {
     const r = state.region; const S = D.summary.find(s => s.region === r);
     const comps = D.components.filter(c => c.region === r);
@@ -711,8 +780,7 @@ tr.comp td { font-weight: 600; }
       fig('Liquidity impulse', zv, pill(S.regime)),
       fig('13-week momentum', fmtSigned(S.mom), el('span', 's', S.mom == null ? '' : S.mom >= 0 ? 'Moving easier' : 'Moving tighter')),
       fig('Market conditions', fmtSigned(S.cz), el('span', 's', S.cz == null ? '' : (S.cz >= 0 ? 'Easier than normal' : 'Tighter than normal') + (S.cmom == null ? '' : S.cmom >= 0 ? ', moving easier' : ', moving tighter'))),
-      fig('Leads equities?', S.corr == null ? '—' : fmtSigned(S.corr),
-        el('span', 's', S.corr == null ? 'No equity index to compare' : `${cap(S.corrWord)} link to the next ${D.params.leadWeeks} weeks' ${S.equity} return`)));
+      ...(S.ev ? [evFig(S.ev, fig)] : []));
     $('#dd-read').innerHTML = mdInline(S.narrative);
 
     mount($('#ch-comp'), t => {
@@ -883,45 +951,255 @@ tr.comp td { font-weight: 600; }
     });
   }
 
-  /* ---------- evidence (backtest) ---------- */
-  const VERDICT = {
-    'useful': ['useful', 'Useful lead'],
-    'weak but consistent': ['weak', 'Weak, consistent'],
-    'works in reverse': ['reverse', 'Works in reverse'],
-    'no reliable link': ['none', 'No reliable link'],
-    'too little history': ['short', 'Too little history'],
-  };
-  function renderEvidence() {
-    const BT = D.backtest; const tb = $('#evtbl'); tb.textContent = '';
-    if (!BT) { $('#ev-read').textContent = 'The backtest did not run in this build.'; return; }
-    const rows = BT.rows;
-    const comps = rows.filter(r => r.key === 'COMPOSITE');
-    const good = rows.filter(r => r.key !== 'COMPOSITE' && r.key !== 'CONDITIONS' && (r.verdict === 'useful' || r.verdict === 'weak but consistent')).sort((a, b) => b.ic13 - a.ic13);
-    const rev = rows.filter(r => r.ic13 != null && r.ic13 <= -0.1);
-    const compGood = comps.filter(r => r.verdict === 'useful' || r.verdict === 'weak but consistent');
-    const nm = r => `${r.label} (${r.region === 'GLOBAL' ? 'Global' : r.region})`;
-    $('#ev-read').innerHTML = mdInline(
-      `**${compGood.length} of ${comps.length}** liquidity-impulse scores show a consistent lead on equities over 3 months. ` +
-      (good.length ? `The inputs with the best record are **${good.slice(0, 4).map(nm).join(', ')}**: mostly money-supply and balance-sheet growth. ` : '') +
-      (rev.length ? `Stress and currency signals (for example ${rev.slice(0, 3).map(nm).join(', ')}) tend to work in reverse: high stress came before better returns, so read them as a contrarian sign at extremes, not as a sell signal.` : ''));
-    const head = el('thead'); head.innerHTML = '<tr><th>Signal</th><th class="r">1 month</th><th class="r">3 months</th><th class="r">6 months</th><th class="r">Holds in both halves?</th><th class="r">3m return when easy / tight</th><th>Verdict</th></tr>';
+  /* ---------- predictive-power tab ---------- */
+  const E = D.evidence;
+  const HZ = ['4', '13', '26', '52'];
+  const HZL = { '4': '1 mo', '13': '3 mo', '26': '6 mo', '52': '12 mo' };
+  const pst = { score: 'impulse', idx: null, reg: null, built: false };
+  const cellOf = (i, sc, d, h) => ((((i.score || {})[sc]) || {})[d] || {})[h] || null;
+  const mark = c => !c ? '' : (c.q != null && c.q < 0.10) ? '◆' : (c.p != null && c.p < 0.05) ? '•' : '';
+  const LEAD = { leads: ['useful', 'Leads'], weak: ['weak', 'Weak hint'], reverse: ['reverse', 'Reverse sign'], none: ['none', 'No lead'], short: ['short', 'Short history'] };
+  const LAG = { follows: ['follow', 'Follows market'], contrarian: ['reverse', 'Opposite to past'], none: ['none', 'No link'], short: ['short', '—'] };
+  const namesOf = (arr, n = 4) => arr.length <= n ? arr.map(i => i.label).join(', ') : arr.slice(0, n).map(i => i.label).join(', ') + ` and ${arr.length - n} more`;
+  const sig = c => c && c.q != null && c.q < 0.10;
+
+  function icTd(c, cls) {
+    const td = el('td', 'r num' + (cls ? ' ' + cls : ''));
+    if (!c) { td.textContent = '—'; return td; }
+    const s = el('span', 'heat', fmtSigned(c.ic, 2));
+    const pc = Math.round(Math.min(Math.abs(c.ic) / 0.5, 1) * 62);
+    s.style.background = `color-mix(in oklab, var(${c.ic >= 0 ? '--pos' : '--neg'}) ${pc}%, var(--surface))`;
+    td.append(s);
+    const m = mark(c); if (m) td.append(el('span', 'mk', m));
+    td.title = `Correlation ${fmtSigned(c.ic, 2)} · p-value ${c.p == null ? '—' : c.p.toFixed(2)} · corrected q-value ${c.q == null ? '—' : c.q.toFixed(2)} · ${c.n} weeks (${c.from} to ${c.to})`;
+    return td;
+  }
+
+  function renderAnswer() {
+    const H = E.headline.impulse, f13 = H.fwd['13'], f26 = H.fwd['26'], b26 = H.bwd['26'];
+    const lead13 = E.indices.filter(i => { const c = cellOf(i, 'impulse', 'fwd', '13'); return sig(c) && c.ic > 0; });
+    const lead26 = E.indices.filter(i => { const c = cellOf(i, 'impulse', 'fwd', '26'); return sig(c) && c.ic > 0; });
+    const follow = E.indices.filter(i => { const c = cellOf(i, 'impulse', 'bwd', '26'); return sig(c) && c.ic > 0; });
+    const chance = Math.max(1, Math.round(0.05 * f13.n));
+    let head;
+    if (lead13.length + lead26.length === 0 && follow.length > 0) head = 'Short answer: it follows markets more than it predicts them.';
+    else if (lead13.length + lead26.length === 0) head = 'Short answer: no reliable link, forward or backward.';
+    else head = 'Short answer: there is some evidence of a lead, in a few indices only.';
+    $('#p-lead').textContent = head;
+    $('#p-body').innerHTML = mdInline(
+      `Over the next 3 months, ${lead13.length} of ${f13.n} indices show a reliable lead (${f13.sig} pass a loose 5% test, and chance alone would pass about ${chance}). ` +
+      `Over the next 6 months, ${lead26.length} of ${f26.n}. ` +
+      `Looking back, ${follow.length} of ${b26.n} indices show a reliable link between the score and the market's return over the past 6 months` +
+      (follow.length ? ` (${namesOf(follow)}): the score tends to look good after the market has already risen. A likely reason, not tested here, is that money and credit growth speed up when asset prices rise.` : '.'));
+
+    const R = E.regime, T_ = E.timing;
+    const cards = [
+      ['Predicts next 3 months', `${lead13.length} of ${f13.n}`, `indices with a reliable lead. Typical correlation ${fmtSigned(f13.median, 2)}.`],
+      ['Predicts next 6 months', `${lead26.length} of ${f26.n}`, `indices with a reliable lead. Typical correlation ${fmtSigned(f26.median, 2)}.`],
+      ['Follows the past 6 months', `${follow.length} of ${b26.n}`, `indices with a reliable link. Typical correlation ${fmtSigned(b26.median, 2)}.`],
+      ['Easy beat tight', `${R.easyBeatsTight} of ${R.n}`, `indices earned more in the 3 months after easy readings than after tight ones; ${R.sig} by a reliable margin.`],
+    ];
+    const box = $('#p-cards'); box.textContent = '';
+    cards.forEach(([l, v, sub]) => { const c = el('div', 'vcard'); c.append(el('span', 'l', l), el('span', 'v num', v), el('span', 's', sub)); box.append(c); });
+
+    const hints = E.indices.map(i => ({ i, c: cellOf(i, 'impulse', 'fwd', '13'), c26: cellOf(i, 'impulse', 'fwd', '26') })).filter(x => x.c && x.c.ic > 0.15)
+      .sort((a, b) => b.c.ic - a.c.ic).slice(0, 3);
+    const rev = E.indices.filter(i => { const c = cellOf(i, 'impulse', 'fwd', '26'); return c && c.ic <= -0.2 && c.p != null && c.p < 0.05; });
+    const bits = [];
+    if (hints.length) bits.push(`The strongest forward hints are ${hints.map(x => `${x.i.label} (${fmtSigned(x.c.ic, 2)} at 3 months, p = ${x.c.p.toFixed(2)})`).join(', ')}. None survives the correction for testing many indices, and several rest on a short history.`);
+    if (rev.length) bits.push(`${namesOf(rev)} show the opposite sign at 6 months (the score was higher before weaker returns). This is not reliable after correction, and it comes from one stretch of Chinese policy history.`);
+    bits.push(`A simple rule (hold the index while the impulse score is at or above zero, otherwise cash) improved the return per unit of risk in ${T_.sharpeBetter} of ${T_.n} indices and cut the worst fall in ${T_.ddBetter}, but earned less in total in ${T_.n - T_.cagrBetter}.`);
+    $('#p-hints').innerHTML = mdInline('**Hints and caveats.** ' + bits.join(' '));
+    $('#p-fix').innerHTML = mdInline('**What changed from the earlier version of this test.** The first version used monthly numbers (M2, M3, loans) from the first day of their month, but they are published 1 to 2 months later, so it saw the future. This version delays every series to its real publication date (listed under "Method and limits"). The forward results got weaker, which is what that correction should do.');
+    $('#read-note').innerHTML = mdInline(`**Does the score predict markets?** ${head.replace('Short answer: ', '')} `);
+    const lb = el('button', 'linkbtn', 'See the test →'); lb.type = 'button'; lb.addEventListener('click', () => showTab('predict', 'p-answer')); $('#read-note').append(lb);
+  }
+
+  function renderScorecard() {
+    const tb = $('#sctbl'); tb.textContent = '';
+    const sc = pst.score;
+    const head = el('thead');
+    head.innerHTML = `<tr><th rowspan="2">Index</th><th class="grp sep" colspan="4">PREDICTS: the score vs the next return</th><th class="grp sep" colspan="4">FOLLOWS: the score vs the past return</th><th class="sep" rowspan="2">Verdict</th></tr>` +
+      `<tr>${HZ.map((h, k) => `<th class="r${k === 0 ? ' sep' : ''}">${HZL[h]}</th>`).join('')}${HZ.map((h, k) => `<th class="r${k === 0 ? ' sep' : ''}">${HZL[h]}</th>`).join('')}</tr>`;
     const body = el('tbody');
-    const icCell = v => { const td = el('td', 'r'); td.append(heat(v == null ? null : v * 3, 2)); if (v != null) td.lastChild.textContent = fmtSigned(v, 2); return td; };
     D.regions.forEach(reg => {
-      const rr = rows.filter(r => r.region === reg); if (!rr.length) return;
-      const g = el('tr', 'grp'); const gc = el('td', null, `${nameOf(reg)} · vs ${rr[0].target === 'World (equal-weight)' ? 'average of the 7 equity indices' : (D.summary.find(s => s.region === reg) || {}).equity || reg}`); gc.colSpan = 7; g.append(gc); body.append(g);
-      rr.forEach(r => {
-        const tr = el('tr', r.key === 'COMPOSITE' || r.key === 'CONDITIONS' ? 'comp' : '');
-        const n = el('td'); n.append(el('div', 't-name', r.label)); if (r.start) n.append(el('div', 't-meta', 'from ' + r.start));
-        const both = el('td', 'r num', r.h1 == null || r.h2 == null ? '—' : (Math.sign(r.h1) === Math.sign(r.h2) ? 'Yes' : 'No') + ` (${fmtSigned(r.h1, 2)} / ${fmtSigned(r.h2, 2)})`);
-        const pc = v => v == null ? '—' : fmtSigned(v, 1) + '%';
-        const ret = el('td', 'r num', `${pc(r.retEasy)} / ${pc(r.retTight)}`);
-        const V = VERDICT[r.verdict] || ['none', r.verdict]; const vd = el('td'); vd.append(el('span', 'vd ' + V[0], V[1]));
-        tr.append(n, icCell(r.ic4), icCell(r.ic13), icCell(r.ic26), both, ret, vd); body.append(tr);
+      const list = E.indices.filter(i => i.region === reg && i.score[sc]); if (!list.length) return;
+      const g = el('tr', 'grp'); const gc = el('td', null, `${nameOf(reg)} · ${sc === 'impulse' ? 'liquidity impulse' : 'market conditions'} score`); gc.colSpan = 10; g.append(gc); body.append(g);
+      list.forEach(i => {
+        const tr = el('tr', 'idx'); tr.dataset.k = i.key; tr.setAttribute('aria-selected', String(i.key === pst.idx));
+        const f13 = cellOf(i, sc, 'fwd', '13');
+        const n = el('td'); n.append(el('div', 't-name', i.label)); if (f13) n.append(el('div', 't-meta dates', `${f13.from} to ${f13.to} · ${f13.n} weeks`));
+        tr.append(n);
+        HZ.forEach((h, k) => tr.append(icTd(cellOf(i, sc, 'fwd', h), k === 0 ? 'sep' : '')));
+        HZ.forEach((h, k) => tr.append(icTd(cellOf(i, sc, 'bwd', h), k === 0 ? 'sep' : '')));
+        const v = el('td', 'sep'); const lead = sc === 'impulse' ? i.lead : i.leadCond; const L = LEAD[lead] || LEAD.none;
+        const wrap = el('div', 't-meta'); wrap.style.gap = '6px'; wrap.append(chip(L[0], L[1]));
+        if (sc === 'impulse') { const G = LAG[i.lag] || LAG.none; if (i.lag === 'follows' || i.lag === 'contrarian') wrap.append(chip(G[0], G[1])); }
+        v.append(wrap); tr.append(v);
+        tr.addEventListener('click', () => selectIndex(i.key, true));
+        body.append(tr);
       });
     });
     tb.append(head, body);
-    $('#ev-note').textContent = 'Numbers are rank correlations (−1 to +1) between the signal and the later equity return, measured on non-overlapping periods. Above +0.10 is a meaningful lead for macro data. "Useful" needs +0.10 or more at 3 months, a t-statistic of 2 or more, and the same sign in both halves of the history. Inputs from TradingView start in 2018–19, so their record is short. With about 40 signals tested, one or two can pass by chance.';
+    $('#p-legend').innerHTML = mdInline('**How to read it.** A correlation of +0.10 or more is meaningful for macro data; +0.30 is strong. ◆ = reliable after correcting for testing 21 indices at once (q < 0.10). • = passes only the loose 5% test, so treat it as a hint. No mark = indistinguishable from chance. Hover a cell for its p-value and sample.');
+  }
+  const chip = (cls, txt) => el('span', 'vd ' + cls, txt);
+
+  function selectIndex(key, scroll) {
+    pst.idx = key; store.set('pidx', key);
+    document.querySelectorAll('#sctbl tr.idx').forEach(r => r.setAttribute('aria-selected', String(r.dataset.k === key)));
+    const sel = $('#p-index'); if (sel.value !== key) sel.value = key;
+    renderDetail();
+    if (scroll) $('#p-detail').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function profCaption(i) {
+    const P = i.profile; if (!P || P.band == null) return '';
+    let best = null; P.corr.forEach((c, k) => { if (c != null && (best == null || Math.abs(c) > Math.abs(best.c))) best = { c, L: P.lags[k] }; });
+    if (!best || Math.abs(best.c) <= P.band) return 'No bar clears the dashed range, so the order of moves is not clear from this test.';
+    const dir = best.L > 0 ? `changes in the score came about ${best.L} weeks before the index return` : best.L < 0 ? `the index moved about ${-best.L} weeks before the score changed` : 'the score and the index moved together in the same 4 weeks';
+    return `Strongest link: ${fmtSigned(best.c, 2)} at ${best.L > 0 ? '+' : best.L < 0 ? MINUS : ''}${Math.abs(best.L)} weeks. In plain terms, ${dir}.`;
+  }
+  function buildProfile(t, i) {
+    const P = i.profile; if (!P) return null;
+    const lim = Math.ceil(Math.max(0.2, ...P.corr.map(v => Math.abs(v || 0)), P.band || 0) * 10 + 0.5) / 10;
+    const data = P.lags.map((L, k) => ({ value: P.corr[k], itemStyle: { color: L > 0 ? t.accent : L < 0 ? t.muted : t.ink2 } }));
+    const gtxt = (txt, pos) => Object.assign({ type: 'text', bottom: 4, style: { text: txt, fill: t.muted, font: `12px ${FONT}` } }, pos);
+    return {
+      animation: false, grid: { left: 44, right: 16, top: 14, bottom: 52 },
+      xAxis: { type: 'category', data: P.lags.map(L => (L > 0 ? '+' : L < 0 ? MINUS : '') + Math.abs(L)), axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.muted, fontFamily: FONT, fontSize: 11 } },
+      yAxis: valAxis(t, { scale: false, min: -lim, max: lim, interval: lim / 2, axisLabel: Object.assign(lbl(t), { formatter: v => fmtSigned(v, 2) }) }),
+      graphic: [gtxt('← market moves first', { left: 48 }), gtxt('score moves first →', { right: 16 })],
+      tooltip: tip(t, p => `<div class="tt-d">${esc(p.name)} weeks</div><div class="tt-r"><b>${esc(fmtSigned(p.value, 2))}</b><span>correlation</span></div>`, 'item'),
+      series: [{ type: 'bar', data, barMaxWidth: 24, markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: t.axis, type: 'dashed', width: 1 }, data: [{ yAxis: P.band }, { yAxis: -P.band }] } }],
+    };
+  }
+
+  function renderRegimes(i) {
+    const tb = $('#regtbl'); tb.textContent = ''; const R = i.regimes;
+    if (!R) { tb.append(el('tbody')); $('#reg-cap').textContent = 'Not enough history for this index.'; return; }
+    const head = el('thead'); head.innerHTML = '<tr><th>Regime</th><th class="r">Weeks</th><th class="r">Avg next 3 months</th><th class="r">Up in</th></tr>';
+    const body = el('tbody');
+    const pc = v => v == null ? '—' : fmtSigned(v, 1) + '%';
+    R.rows.forEach(r => { const tr = el('tr'); const n = el('td'); n.append(pill(r.regime)); tr.append(n, el('td', 'r num', String(r.weeks)), el('td', 'r num', pc(r.mean)), el('td', 'r num', r.pos == null ? '—' : r.pos + '% of weeks')); body.append(tr); });
+    const all = el('tr', 'comp'); all.append(el('td', null, 'All weeks'), el('td', 'r num', String(R.easyWeeks + R.tightWeeks)), el('td', 'r num', pc(R.all)), el('td', 'r num', ''));
+    body.append(all); tb.append(head, body);
+    const reliable = R.p != null && R.p < 0.05;
+    $('#reg-cap').textContent = R.gap == null ? '' :
+      `Easy readings (score ≥ 0) were followed by ${pc(R.easy)} on average, tight readings by ${pc(R.tight)}: a gap of ${fmtSigned(R.gap, 1)} points (p = ${R.p == null ? '—' : R.p.toFixed(2)}). ` +
+      (reliable ? 'That gap is larger than chance would produce.' : 'That gap is within what chance can produce. Weeks overlap, so there are far fewer independent periods than weeks.');
+  }
+
+  function renderTiming(i) {
+    const T = i.timing; const node = $('#ch-timing'); const tb = $('#tmtbl'); tb.textContent = '';
+    if (!T) { const rec = registry.get(node); if (rec) { rec.ro.disconnect(); rec.inst.dispose(); registry.delete(node); } node.textContent = 'Not enough history for this index.'; node.classList.add('nochart'); $('#tm-cap').textContent = ''; return; }
+    node.classList.remove('nochart'); if (!registry.get(node)) node.textContent = '';
+    const first = D.dates.indexOf(T.start);
+    mount(node, t => {
+      if (first < 0) return null;
+      const mk2 = arr => arr.map((v, k) => [D.dates[first + k], v]);
+      const all = T.bhCurve.concat(T.stCurve), lo = Math.min(...all), hi = Math.max(...all);
+      return {
+        animation: false, grid: GRID, xAxis: timeAxis(t),
+        yAxis: valAxis(t, { type: 'log', scale: true, min: Math.pow(10, Math.floor(Math.log10(lo * 0.9) * 4) / 4), max: Math.pow(10, Math.ceil(Math.log10(hi * 1.1) * 4) / 4), axisLabel: Object.assign(lbl(t), { formatter: v => fmtNum(v, v < 10 ? 1 : 0) + '×' }) }),
+        legend: { top: 0, right: 0, itemWidth: 14, itemHeight: 2, icon: 'rect', textStyle: { color: t.ink2, fontFamily: FONT, fontSize: 12 } },
+        tooltip: tip(t, ps => { const l = (Array.isArray(ps) ? ps : [ps]).filter(p => p.value && p.value[1] != null); return l.length ? `<div class="tt-d">${esc(dateOf(l[0].value[0]))}</div>` + l.map(p => `<div class="tt-r"><span class="tt-k" style="background:${p.color}"></span><b>${esc(fmtNum(p.value[1], 2))}×</b><span>${esc(p.seriesName)}</span></div>`).join('') : ''; }),
+        series: [
+          { name: 'Buy and hold', type: 'line', showSymbol: false, sampling: 'lttb', lineStyle: { width: 1.5, color: t.muted }, itemStyle: { color: t.muted }, data: mk2(T.bhCurve) },
+          { name: 'Hold only when impulse ≥ 0', type: 'line', showSymbol: false, sampling: 'lttb', lineStyle: { width: 2, color: t.accent }, itemStyle: { color: t.accent }, data: mk2(T.stCurve) },
+        ],
+      };
+    });
+    const head = el('thead'); head.innerHTML = '<tr><th></th><th class="r">Return a year</th><th class="r">Volatility</th><th class="r">Return per unit of risk</th><th class="r">Worst fall</th><th class="r">Invested</th></tr>';
+    const body = el('tbody');
+    const row = (lab, s, inv) => { const tr = el('tr'); tr.append(el('td', 't-name', lab), el('td', 'r num', fmtSigned(s.cagr, 1) + '%'), el('td', 'r num', s.vol.toFixed(1) + '%'), el('td', 'r num', s.sharpe == null ? '—' : s.sharpe.toFixed(2)), el('td', 'r num', fmtSigned(s.mdd, 0) + '%'), el('td', 'r num', inv)); return tr; };
+    body.append(row('Buy and hold', T.bh, '100%'), row('Hold only when impulse ≥ 0', T.st, T.st.invested + '%'));
+    tb.append(head, body);
+    const better = (T.st.sharpe || 0) > (T.bh.sharpe || 0), dd = (T.st.mdd || 0) > (T.bh.mdd || 0);
+    $('#tm-cap').textContent = `${fmtDate(T.start)} to ${fmtDate(T.end)}. The rule ${better ? 'raised' : 'did not raise'} the return per unit of risk and ${dd ? 'reduced' : 'did not reduce'} the worst fall, and earned ${(T.st.cagr || 0) >= (T.bh.cagr || 0) ? 'at least as much' : 'less'} a year, because it sat in cash ${100 - T.st.invested}% of the time. In-sample: the rule was fixed in advance but the score design was chosen with this history in view.`;
+  }
+
+  function renderDetail() {
+    const i = E.indices.find(x => x.key === pst.idx); if (!i) return;
+    const f = cellOf(i, 'impulse', 'fwd', '13');
+    $('#pd-title').textContent = i.label;
+    $('#pd-sub').textContent = `Tested against the ${nameOf(i.region)} liquidity impulse score` + (f ? `, ${f.from} to ${f.to} (${f.n} weeks).` : '.');
+    mount($('#ch-prof'), t => buildProfile(t, i));
+    $('#prof-cap').textContent = profCaption(i);
+    renderRegimes(i); renderTiming(i);
+  }
+
+  function renderInputs() {
+    const reg = pst.reg; const tb = $('#intbl'); tb.textContent = '';
+    const list = (E.inputs[reg] || []).slice().sort((a, b) => (a.group === b.group ? 0 : a.group === 'impulse' ? -1 : 1));
+    const head = el('thead'); head.innerHTML = '<tr><th>Input</th><th>Score</th><th class="r sep">Next 3 mo</th><th class="r">Next 6 mo</th><th class="r sep">Past 3 mo</th></tr>';
+    const body = el('tbody');
+    list.forEach(x => {
+      const c = D.components.find(k => k.key === x.key) || {};
+      const tr = el('tr'); const n = el('td'); n.append(el('div', 't-name', c.label || x.key)); if (x.f13) n.append(el('div', 't-meta', `${x.f13.from} to ${x.f13.to}`));
+      tr.append(n, el('td', null, x.group === 'impulse' ? 'Impulse' : 'Conditions'), icTd(x.f13, 'sep'), icTd(x.f26), icTd(x.b13, 'sep')); body.append(tr);
+    });
+    tb.append(head, body);
+    const idx = (E.indices.find(i => i.key === ({US:'sp500',EU:'estoxx50',JP:'nikkei',HK:'hsi',SG:'sti',KR:'kospi',CN:'csi300',GLOBAL:'acwi'})[reg]) || {}).label || '';
+    const reliable = list.filter(x => sig(x.f13) || sig(x.f26)).length;
+    $('#pi-note').textContent = `Tested against ${idx}. ${reliable} of ${list.length} inputs in this region pass the corrected test for a forward lead. The correction here covers all ${Object.values(E.inputs).reduce((a, l) => a + l.length, 0)} inputs at once.`;
+  }
+
+  function renderPredictMethod() {
+    const box = $('#p-method-body'); box.textContent = '';
+    const col = (title, nodes) => { const d = el('div'); d.append(el('h3', null, title)); nodes.forEach(n => d.append(n)); box.append(d); };
+    const lagTbl = el('table'); lagTbl.innerHTML = '<thead><tr><th>Series</th><th class="r">Delay (days)</th></tr></thead>';
+    const tbody = el('tbody'); Object.entries(E.lags).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => { const tr = el('tr'); tr.append(el('td', 'mono', k), el('td', 'r num', String(v))); tbody.append(tr); });
+    lagTbl.append(tbody);
+    const det = el('details', 'lagbox'); det.append(el('summary', null, 'Publication delays used'), lagTbl);
+    col('No peeking', [
+      el('p', null, 'Monthly series carry the date of their month, but come out 1 to 2 months later. Each series is delayed to about its real release date before anything is computed, so the score at any past week only uses numbers that existed then. Delays are approximate and set on the long side.'),
+      el('p', null, 'Not corrected: money-supply figures are revised after release, and this test uses today\'s revised values.'), det]);
+    col('How we judge it', [
+      el('p', null, 'Correlation is the rank (Spearman) correlation between the score and the index return. A p-value comes from replacing the score with random look-alikes that drift as slowly as the real one; this keeps the test honest when both series trend. On random data it flags about 5% to 7% of cases at the 5% level, as it should.'),
+      el('p', null, `The q-value corrects for testing many indices at once (false-discovery rate). Headline counts use q < 0.10. Across all ${E.cellsTotal} cells in the scorecard, ${E.cellsSig} pass p < 0.05; chance alone would pass about ${Math.round(0.05 * E.cellsTotal)}. Most of the excess is in the "follows" block.`)]);
+    const lim = el('ul');
+    ['In-sample: the inputs, signs and the impulse/conditions split were chosen with this history in view, so results are likely flattering, not harsh.',
+     'Short history for Asia: Korea starts in 2018, Hong Kong, Singapore and China around 2014 to 2015 (monthly data from TradingView). Few independent periods means low power: "no link" can mean "cannot tell".',
+     'Index returns are price returns in local currency (MSCI ACWI in US dollars). DAX includes dividends. TOPIX and ChiNext are ETF prices because Yahoo has no index series. The world index is an equal-weight average of the 7 regional indices.',
+     'No trading costs, taxes or dividends in the timing rule. Returns are not advice.'].forEach(t => lim.append(el('li', null, t)));
+    col('Limits', [lim]);
+  }
+
+  function renderPredict() {
+    if (!E) { $('#p-lead').textContent = 'The predictive-power test did not run in this build.'; return; }
+    pst.built = true;
+    if (!pst.idx || !E.indices.find(i => i.key === pst.idx)) pst.idx = store.get('pidx', 'sp500');
+    if (!E.indices.find(i => i.key === pst.idx)) pst.idx = E.indices[0].key;
+    pst.reg = pst.reg || 'US';
+    const sel = $('#p-index'); sel.textContent = '';
+    D.regions.forEach(reg => { const og = el('optgroup'); og.label = nameOf(reg); E.indices.filter(i => i.region === reg).forEach(i => { const o = el('option', null, i.label); o.value = i.key; og.append(o); }); if (og.children.length) sel.append(og); });
+    sel.value = pst.idx; sel.addEventListener('change', () => selectIndex(sel.value, false));
+    seg($('#p-score'), [['impulse', 'Liquidity impulse'], ['conditions', 'Market conditions']], pst.score, v => { pst.score = v; renderScorecard(); });
+    const pk = $('#pi-picker'); pk.textContent = '';
+    D.regions.filter(r => (E.inputs[r] || []).length).forEach(r => { const b = el('button', null, r); b.type = 'button'; b.setAttribute('aria-pressed', String(r === pst.reg)); b.addEventListener('click', () => { pst.reg = r; pk.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderInputs(); }); pk.append(b); });
+    renderScorecard(); renderDetail(); renderInputs(); renderPredictMethod();
+  }
+
+  /* ---------- tabs ---------- */
+  const TABS = {
+    main: [['read', 'The read'], ['pulse', 'Daily pulse'], ['overlay', 'All regions'], ['region', 'Region detail'], ['fed', 'Fed balance sheet'], ['map', 'Regime map'], ['history', 'History'], ['method', 'How to read this']],
+    predict: [['p-answer', 'The answer'], ['p-grid', 'Scorecard'], ['p-detail', 'Index detail'], ['p-inputs', 'Single inputs'], ['p-method', 'Method and limits']],
+  };
+  function renderTabs() {
+    const opts = [['main', 'Dashboard']]; if (E) opts.push(['predict', 'Does it predict?']);
+    seg($('#tabs'), opts, state.tab, v => showTab(v));
+    const nav = $('#jump'); nav.textContent = '';
+    TABS[state.tab].forEach(([id, label]) => { const a = el('a', null, label); a.href = '#' + id; nav.append(a); });
+    $('#win-ctl').hidden = state.tab !== 'main';
+  }
+  function showTab(name, anchor) {
+    if (name === 'predict' && !E) name = 'main';
+    state.tab = name; store.set('tab', name);
+    $('#tab-main').hidden = name !== 'main'; $('#tab-predict').hidden = name !== 'predict';
+    renderTabs();
+    if (name === 'predict' && !pst.built) renderPredict();
+    requestAnimationFrame(() => { redrawAll(); const t = anchor && document.getElementById(anchor); if (t) t.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0); });
   }
 
   /* ---------- daily pulse ---------- */
@@ -1105,8 +1383,8 @@ tr.comp td { font-weight: 600; }
       el('p', null, 'A z-score is not more accurate than the raw number. It trades the real units for comparability. The real units are in the "What\'s inside the score" table and the Fed balance-sheet section. Signs are flipped where needed so + always means easier, and scores are capped at ±3.'),
     ]);
     col('Regimes and momentum', [
-      el('p', null, 'Each region has two scores. The liquidity impulse blends money supply, credit and central-bank balance sheets. In the backtest, these were the inputs that led equities. Market conditions blends policy and interbank rates, credit spreads, volatility and currency. These describe the current backdrop but did not lead returns; at extremes, high stress often came before better returns.'),
-      el('p', null, `The regime comes from the liquidity impulse: easy when it is at or above zero, tight below. Momentum is its change over ${D.params.momWeeks} weeks: improving if it has risen, fading or deteriorating if it has fallen. "Leads equities?" in the region detail is the correlation of the impulse with the equity return over the next ${D.params.leadWeeks} weeks.`),
+      el('p', null, 'Each region has two scores. The liquidity impulse blends money supply, credit and central-bank balance sheets: slow quantities. Market conditions blends policy and interbank rates, credit spreads, volatility and currency: fast prices. The split keeps the two kinds of signal apart. It is not proof that either one predicts markets: the test on the "Does it predict?" tab finds that neither does reliably. The impulse tends to follow past returns, and market conditions mirror them.'),
+      el('p', null, `The regime comes from the liquidity impulse: easy when it is at or above zero, tight below. Momentum is its change over ${D.params.momWeeks} weeks: improving if it has risen, fading or deteriorating if it has fallen. The region detail shows whether the impulse score has predicted that region\'s main index. The full test is on the "Does it predict?" tab.`),
     ]);
     const notes = el('ul');
     const fx = D.summary.filter(s => s.fxOnly).map(s => s.name);
@@ -1134,7 +1412,11 @@ tr.comp td { font-weight: 600; }
   renderPicker(); renderDeep();
   renderFed();
   mount($('#ch-quad'), buildQuad); renderMapNotes();
-  renderHistory(); renderMethod(); renderEvidence();
+  renderHistory(); renderMethod();
+  if (E) renderAnswer();
+  const savedTab = store.get('tab', 'main');
+  state.tab = (savedTab === 'predict' && E) || (location.hash || '').indexOf('#p-') === 0 && E ? 'predict' : 'main';
+  showTab(state.tab);
 
   const mq = matchMedia('(prefers-color-scheme: dark)');
   if (mq.addEventListener) mq.addEventListener('change', redrawAll); else if (mq.addListener) mq.addListener(redrawAll);

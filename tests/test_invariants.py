@@ -8,9 +8,9 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import backtest as B          # noqa: E402
 import config as C            # noqa: E402
 import econ_cache as EC       # noqa: E402
+import predictive as PR       # noqa: E402
 import tracker as T           # noqa: E402
 
 rng = np.random.default_rng(0)
@@ -115,16 +115,74 @@ def test_econ_cache_merge_is_idempotent(tmp_path, monkeypatch):
     assert list(s.values) == [2000.0, 3000.0]
 
 
-def test_backtest_detects_a_real_lead():
-    n = 700
-    sig = weekly(rng.normal(0, 1, n))
-    ret = 0.02 * sig.values + rng.normal(0, 0.02, n)          # signal leads next-week return
-    price = pd.Series(np.exp(np.cumsum(np.r_[0, ret[:-1]])), index=sig.index)
-    fwd = B.forward_returns(price, 1)
-    ic, t, _ = B._ic(sig, fwd, 1)
-    assert ic > 0.3 and t > 5
-    noise = weekly(rng.normal(0, 1, n))
-    assert abs(B._ic(noise, fwd, 1)[0]) < 0.15
+def test_shift_available_moves_dates_forward():
+    m = pd.Series([1.0, 2.0], index=pd.to_datetime(["2024-01-01", "2024-02-01"]))
+    out = T.shift_available(m, 45)
+    assert list(out.index) == [pd.Timestamp("2024-02-15"), pd.Timestamp("2024-03-17")]
+    assert list(m.index)[0] == pd.Timestamp("2024-01-01")        # input untouched
+    assert T.shift_available(m, 0) is m
+
+
+def test_every_lagged_series_exists_in_the_registry():
+    ids = {m["id"] for m in C.METRICS} | {p["id"] for p in C.PULSE} | {"SOFR", "GDP"}   # SOFR, GDP feed derived series
+    for k in C.LAG_DAYS:
+        assert k in ids, k
+    for region, items in C.INDICES.items():
+        assert C.PRIMARY_INDEX[region] in [k for k, _, _ in items], region
+
+
+def test_bh_qvalues():
+    q = PR.bh_qvalues([0.001, 0.04, 0.5, np.nan])
+    assert q[0] == pytest.approx(0.003) and q[1] == pytest.approx(0.06)
+    assert np.isnan(q[3]) and q[2] == pytest.approx(0.5)
+    assert (q[:3] >= np.array([0.001, 0.04, 0.5])).all()
+
+
+def test_spearman_perm_detects_a_real_lead_and_ignores_noise():
+    n = 600
+    r = np.random.default_rng(1)
+    sig = weekly(np.cumsum(r.normal(0, 1, n)) * 0.2 + r.normal(0, 1, n))
+    fut = sig.shift(-13) * 0.0 + weekly(r.normal(0, 1, n))
+    real = fut + 0.6 * sig                                     # future return carries the signal
+    hit = PR.spearman_perm(sig, real, 13, np.random.default_rng(2), nperm=500)
+    assert hit["ic"] > 0.3 and hit["p"] < 0.01
+    noise = PR.spearman_perm(sig, weekly(r.normal(0, 1, n)), 13, np.random.default_rng(3), nperm=500)
+    assert abs(noise["ic"]) < 0.15 and noise["p"] > 0.01
+    assert PR.spearman_perm(sig.iloc[:50], real.iloc[:50], 13, np.random.default_rng(4)) is None   # too short
+
+
+def test_surrogate_p_values_not_too_lenient_for_persistent_series():
+    """Two unrelated random walks: the false-positive rate at 5% must stay near 5%."""
+    r = np.random.default_rng(11)
+    hits, trials = 0, 60
+    for k in range(trials):
+        x = weekly(np.cumsum(r.normal(0, 1, 300)))
+        y = weekly(np.cumsum(r.normal(0, 1, 300)))
+        res = PR.spearman_perm(x, y.diff().fillna(0), 13, np.random.default_rng(k), nperm=199)
+        hits += res["p"] < 0.05
+    assert hits / trials < 0.15
+
+
+def test_verdicts():
+    good = {"ic": 0.2, "p": 0.01, "q": 0.03, "h1": 0.1, "h2": 0.2}
+    assert PR.lead_verdict(good, None) == "leads"
+    assert PR.lead_verdict(dict(good, h1=-0.1), None) == "weak"           # unstable halves
+    assert PR.lead_verdict(dict(good, q=0.4), None) == "weak"
+    assert PR.lead_verdict(dict(good, ic=-0.2), None) == "reverse"
+    assert PR.lead_verdict(dict(good, ic=0.01, p=0.9, q=0.9), None) == "none"
+    assert PR.lead_verdict(None, None) == "short"
+    assert PR.lag_verdict({"ic": 0.2, "p": 0.01, "q": 0.05}) == "follows"
+    assert PR.lag_verdict({"ic": -0.2, "p": 0.01, "q": 0.05}) == "contrarian"
+    assert PR.lag_verdict({"ic": 0.2, "p": 0.04, "q": 0.30}) == "none"        # passes 5% only, not after correction
+    assert PR.lag_verdict(None) == "short"
+
+
+def test_timing_rule_uses_last_weeks_signal():
+    idx = pd.date_range("2015-01-02", periods=200, freq=C.RESAMPLE)
+    score = pd.Series(np.where(np.arange(200) % 2 == 0, 1.0, -1.0), index=idx)
+    close = pd.Series(100 * np.exp(np.cumsum(np.where(np.arange(200) % 2 == 1, 0.02, -0.02))), index=idx)
+    t = PR.timing(score, close, idx)                 # score >= 0 on even weeks -> held next (odd) week, which rises
+    assert t["st"]["cagr"] > 50 and t["bh"]["cagr"] < 5
 
 
 def test_every_input_is_in_exactly_one_score():

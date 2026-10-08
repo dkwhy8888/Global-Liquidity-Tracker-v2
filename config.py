@@ -95,8 +95,10 @@ METRICS = [
 
 REGIONS = ["GLOBAL", "US", "EU", "JP", "HK", "SG", "KR", "CN"]
 
-# Each region gets two scores (backtest, Sep-2026: quantity signals lead equities,
-# price/stress signals do not and often work in reverse):
+# Each region gets two scores (slow quantities vs fast prices). The split was first chosen from a
+# backtest that looked into the future; the point-in-time test (predictive.py) does NOT support
+# it as a predictor: neither score leads equities, the impulse partly follows them, and
+# conditions mirror them. Keep the split as a description, not as a forecast.
 #   impulse    = money supply, credit and central-bank balance sheets -> headline score + regime
 #   conditions = policy/interbank rates, spreads, volatility and FX    -> current backdrop
 IMPULSE_BUCKETS = {"cb_balance", "money_credit"}
@@ -122,3 +124,43 @@ PULSE = [
     {"key": "move",          "source": "yf",      "id": "^MOVE",         "unit": "pts", "scale": 1,   "score": "level", "sign": -1, "weight": 0.75},
     {"key": "dxy",           "source": "yf",      "id": "DX-Y.NYB",      "unit": "index", "scale": 1, "score": "level", "sign": -1, "weight": 1.0},
 ]
+
+# ---------------------------------------------------------------------------
+# POINT-IN-TIME LAGS (days) - used only by the predictive-power test.
+# The live engine dates a monthly value with the first day of its month (Aug-2026 M2 is
+# dated 2026-08-01) although it is published weeks later. A backtest that treats that label
+# as "known" looks into the future and flatters every slow, monthly input. LAG_DAYS moves each
+# series to about when it was first public. Approximate, and kept on the long side.
+# Keys: FRED id | econ_cache code. Anything not listed (daily market prices) has lag 0.
+# ---------------------------------------------------------------------------
+LAG_DAYS = {
+    # FRED weekly / daily
+    "ECBASSETSW": 4, "TOTBKCR": 9, "DFF": 1, "T10Y2Y": 1, "BAA10Y": 1, "NFCI": 5,
+    "DTWEXBGS": 7, "SOFR": 1,
+    # FRED monthly / quarterly
+    "M2SL": 55, "JPNASSETS": 40, "GDP": 120, "IR3TIB01KRM156N": 75, "IR3TIB01CNM156N": 75,
+    # TradingView monthly (econ_cache)
+    "CNM2": 45, "CNCBBS": 50, "CNLG": 45, "CNCRR": 30, "HKM2": 60, "HKINBR": 35,
+    "SGM2": 60, "KRM2": 60, "EUM3": 60, "JPM2": 40,
+}
+
+# ---------------------------------------------------------------------------
+# EQUITY INDICES for the predictive-power test: region -> [(key, label, yfinance ticker)].
+# All in local currency (ACWI in USD). Yahoo has no TOPIX or ChiNext index, so ETFs stand in.
+# ---------------------------------------------------------------------------
+INDICES = {
+    "US": [("sp500", "S&P 500", "^GSPC"), ("nasdaq", "Nasdaq Composite", "^IXIC"),
+           ("dow", "Dow Jones", "^DJI"), ("russell2000", "Russell 2000", "^RUT")],
+    "EU": [("estoxx50", "Euro Stoxx 50", "^STOXX50E"), ("stoxx600", "STOXX Europe 600", "^STOXX"),
+           ("dax", "DAX (total return)", "^GDAXI"), ("cac40", "CAC 40", "^FCHI")],
+    "JP": [("nikkei", "Nikkei 225", "^N225"), ("topix", "TOPIX (Daiwa ETF 1308)", "1308.T")],
+    "HK": [("hsi", "Hang Seng", "^HSI"), ("hscei", "Hang Seng China Enterprises", "^HSCE")],
+    "SG": [("sti", "Straits Times Index", "^STI")],
+    "KR": [("kospi", "KOSPI", "^KS11"), ("kosdaq", "KOSDAQ", "^KQ11")],
+    "CN": [("csi300", "CSI 300", "000300.SS"), ("sse", "Shanghai Composite", "000001.SS"),
+           ("szse", "Shenzhen Component", "399001.SZ"), ("chinext", "ChiNext (ETF 159915)", "159915.SZ")],
+    "GLOBAL": [("acwi", "MSCI ACWI (ETF, USD)", "ACWI"),
+               ("world_ew", "World, equal-weight of the 7 regional indices", None)],
+}
+PRIMARY_INDEX = {"US": "sp500", "EU": "estoxx50", "JP": "nikkei", "HK": "hsi", "SG": "sti",
+                 "KR": "kospi", "CN": "csi300", "GLOBAL": "acwi"}

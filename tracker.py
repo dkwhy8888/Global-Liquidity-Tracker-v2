@@ -19,6 +19,28 @@ import econ_cache as EC
 import market_fallback as MF
 
 
+# Point-in-time mode: when True, every series is moved to the date it was first public
+# (config.LAG_DAYS) before anything is computed. Used for the predictive-power test, so it
+# cannot use data that was not yet published. Set only inside build_dataset().
+_PIT = False
+_FETCHED = {}      # start -> (fred, mkt, man): fetched once, shared by the live and PIT builds
+
+
+def shift_available(s, days):
+    """Move a series forward in time by `days` (its publication lag)."""
+    if s is None or not days:
+        return s
+    out = s.copy()
+    out.index = out.index + pd.Timedelta(days=days)
+    return out
+
+
+def _tv(code):
+    """econ_cache series, shifted to its publication date in point-in-time mode."""
+    s = EC.load(code)
+    return shift_available(s, C.LAG_DAYS.get(code, 0)) if _PIT and s is not None else s
+
+
 # ------------------------------------------------------------------ fetch ---
 def _fred_client():
     """Return a FRED client, or None if no key is set (dashboard then runs
@@ -143,7 +165,7 @@ def derived_series(fred, mkt):
         print("  derived g3_assets FAILED (skips ECB/BOJ if ids missing):", e)
     # G4 = G3 + PBOC (TradingView CNCBBS, CNY bn), USD mn. Starts 2018 (PBOC history).
     try:
-        pboc = to_weekly(EC.load("CNCBBS")) * 1000.0 / to_weekly(mkt["USDCNY=X"])
+        pboc = to_weekly(_tv("CNCBBS")) * 1000.0 / to_weekly(mkt["USDCNY=X"])
         g3 = out["g3_assets"]
         out["g4_assets"] = pd.concat([g3, pboc], axis=1).ffill().dropna().sum(axis=1)
     except Exception as e:
@@ -152,9 +174,9 @@ def derived_series(fred, mkt):
     try:
         eur, jpy, cny = (to_weekly(mkt[t]) for t in ("EURUSD=X", "USDJPY=X", "USDCNY=X"))
         parts = [to_weekly(fred["M2SL"]),                         # $bn
-                 to_weekly(EC.load("EUM3")) * eur,                  # EUR bn -> $bn
-                 to_weekly(EC.load("JPM2")) * 1000.0 / jpy,         # JPY trn -> $bn
-                 to_weekly(EC.load("CNM2")) / cny]                  # CNY bn -> $bn
+                 to_weekly(_tv("EUM3")) * eur,                  # EUR bn -> $bn
+                 to_weekly(_tv("JPM2")) * 1000.0 / jpy,         # JPY trn -> $bn
+                 to_weekly(_tv("CNM2")) / cny]                  # CNY bn -> $bn
         out["global_m2"] = pd.concat(parts, axis=1).ffill().dropna().sum(axis=1)
     except Exception as e:
         print("  derived global_m2 FAILED:", e)
@@ -208,13 +230,35 @@ def _series_for(m, fred, mkt, man, deriv):
     if src == "derived":
         return deriv.get(m["id"])
     if src == "tv":
-        return EC.load(m["id"])
+        return _tv(m["id"])
     if src == "manual" and not man.empty and m["id"] in man.columns:
         return man[m["id"]].dropna()
     return None
 
 
-def build_dataset(start="2010-01-01"):
+def build_dataset(start="2010-01-01", pit=False):
+    """Fetch (once) and build the dataset. pit=True builds the point-in-time version; a
+    normal build also carries it as ds["pit"] for the predictive-power test."""
+    global _PIT
+    if start not in _FETCHED:
+        _FETCHED[start] = _fetch_all(start)
+    fred0, mkt0, man = _FETCHED[start]
+    if pit:
+        fred = {k: shift_available(v, C.LAG_DAYS.get(k, 0)) for k, v in fred0.items()}
+        mkt = {k: shift_available(v, C.LAG_DAYS.get(k, 0)) for k, v in mkt0.items()}
+    else:
+        fred, mkt = fred0, mkt0
+    _PIT = pit
+    try:
+        ds = _assemble(fred, mkt, man)
+    finally:
+        _PIT = False
+    if not pit:
+        ds["pit"] = build_dataset(start, pit=True)
+    return ds
+
+
+def _fetch_all(start):
     fred_ids = sorted({m["id"] for m in C.METRICS if m["source"] == "fred"}
                       | {"WALCL", "WTREGEN", "RRPONTSYD", "WRESBAL", "ECBASSETSW", "JPNASSETS",
                          "GDP", "SOFR", "IORB", "IOER", "M2SL"})
@@ -224,6 +268,10 @@ def build_dataset(start="2010-01-01"):
     print("Fetching FRED ...");    fred = fetch_fred(fred_ids, start)
     print("Fetching market ...");  mkt  = fetch_yf(yf_ids, start)
     print("Fetching manual ...");  man  = fetch_manual()
+    return fred, mkt, man
+
+
+def _assemble(fred, mkt, man):
     deriv = derived_series(fred, mkt)
     fed_bs = fed_balance_sheet(fred)
 
@@ -329,14 +377,15 @@ def regime_label(level, momentum):
 
 def summary_table(ds):
     comp, mom, eq = ds["composite"], ds["momentum"], ds["equities"]
+    pcomp = ds["pit"]["composite"] if "pit" in ds else comp     # lead test uses publication dates
     rows = []
     for r in comp.columns:
         lvl, mo = comp[r].iloc[-1], mom[r].iloc[-1]
         corr = np.nan
-        if r in eq.columns:                       # composite_t vs index fwd return
-            idx = eq[r].reindex(comp.index).ffill()
+        if r in eq.columns and r in pcomp.columns:   # composite_t vs index fwd return
+            idx = eq[r].reindex(pcomp.index).ffill()
             fwd = idx.shift(-C.LEAD_WEEKS) / idx - 1.0
-            j = pd.concat([comp[r], fwd], axis=1).dropna()
+            j = pd.concat([pcomp[r], fwd], axis=1).dropna()
             if len(j) > 52:
                 corr = j.iloc[:, 0].corr(j.iloc[:, 1])
         rows.append({
