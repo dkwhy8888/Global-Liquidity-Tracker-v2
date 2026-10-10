@@ -18,6 +18,7 @@ import config as C
 import narrative as N
 import predictive as PR
 import pulse as P
+import stress as ST
 import tracker as T
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -165,6 +166,18 @@ def evidence_payload(ds):
         return None
 
 
+def stress_payload():
+    """Does the daily pulse warn before S&P 500 sell-offs? (stress.py) None if it cannot run."""
+    try:
+        pl = P.build_pulse(start="2005-01-01")
+        px = ST.fetch_spx()
+        res = ST.analyze(pl, px)
+        return ST.payload(res, ST.sensitivity(pl, px), ST.power_check(res))
+    except Exception as e:
+        print("  stress FAILED:", repr(e))
+        return None
+
+
 def build():
     ds = T.build_dataset()
     summ = T.summary_table(ds)
@@ -240,6 +253,7 @@ def build():
                "series": {c: [_num(v, 1) for v in fb[c].values] for c in fb.columns}}
 
     evidence = evidence_payload(ds)
+    stress = stress_payload()
     # per-region one-liner for the region detail: main index, lead and lag verdicts
     ev_by = {}
     if evidence:
@@ -272,6 +286,7 @@ def build():
         "pulse": pulse_payload(),
         "changes": changes_payload(ds),
         "evidence": evidence,
+        "stress": stress,
     }
     for c in payload["changes"]:
         print(f"CHANGE: {c['name']} moved from {c['from']} to {c['to']} {c['when']}")

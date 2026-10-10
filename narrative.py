@@ -11,10 +11,10 @@ FLAG = {"GLOBAL": "🌍", "US": "🇺🇸", "EU": "🇪🇺", "JP": "🇯🇵",
         "HK": "🇭🇰", "SG": "🇸🇬", "KR": "🇰🇷", "CN": "🇨🇳"}
 
 REGIME_OPEN = {
-    "Easy & Improving":      "The liquidity impulse is **easier than normal and still improving** — a supportive, risk-on backdrop.",
-    "Easy & Fading":         "The liquidity impulse is **easier than normal, but the tailwind is fading** — still supportive, just losing momentum.",
-    "Tight & Improving":     "The liquidity impulse is **tighter than normal, but beginning to improve** — a headwind that's starting to ease.",
-    "Tight & Deteriorating": "The liquidity impulse is **tighter than normal and still deteriorating** — a risk-off, headwind backdrop.",
+    "Easy & Improving":      "The liquidity impulse is **easier than normal and still improving** — money and credit are growing faster than usual, and the pace is picking up.",
+    "Easy & Fading":         "The liquidity impulse is **easier than normal, but losing momentum** — money and credit are still growing faster than usual, at a slower pace.",
+    "Tight & Improving":     "The liquidity impulse is **tighter than normal, but beginning to improve** — money and credit are growing slower than usual, and the pace is picking up.",
+    "Tight & Deteriorating": "The liquidity impulse is **tighter than normal and still deteriorating** — money and credit are growing slower than usual, and the pace is falling.",
     "n/a":                   "Not enough data is loaded to classify this region yet.",
 }
 
@@ -178,11 +178,9 @@ def conditions_sentence(level, att):
     tight = [PHRASES[k][2] for k, z, c in (att or {}).get("tightening", [])[:1] if k in PHRASES]
     out += "."
     if ease:
-        out += " Helping most: " + ease[0] + "."
+        out += " Easing most: " + ease[0] + "."
     if tight:
-        out += " Weighing most: " + tight[0] + "."
-    if level <= -1.0:
-        out += " In the past, stress this high has more often come before better equity returns than worse."
+        out += " Tightening most: " + tight[0] + "."
     return out
 
 
@@ -194,9 +192,9 @@ def region_narrative(region, regime, level, mom, att, mom_weeks=13, fx_only=Fals
         ease = [PHRASES[k][1] for k, z, c in att.get("easing", []) if k in PHRASES]
         tight = [PHRASES[k][2] for k, z, c in att.get("tightening", []) if k in PHRASES]
         if ease:
-            out.append("**What's helping:** " + _join(ease) + ".")
+            out.append("**What's easing it:** " + _join(ease) + ".")
         if tight:
-            out.append("**What's weighing:** " + _join(tight) + ".")
+            out.append("**What's tightening it:** " + _join(tight) + ".")
         impr = _names([PHRASES[k][0] for k, d in att.get("improving", []) if k in PHRASES])
         fade = _names([PHRASES[k][0] for k, d in att.get("fading", []) if k in PHRASES])
         if regime.endswith("Improving") and impr:
@@ -255,9 +253,9 @@ def pulse_narrative(score, chg5, att):
     ease = [PULSE_PHRASES[k][1] for k, _ in att.get("easing", []) if k in PULSE_PHRASES]
     tight = [PULSE_PHRASES[k][2] for k, _ in att.get("tightening", []) if k in PULSE_PHRASES]
     if ease:
-        out.append("**Helping:** " + _join(ease) + ".")
+        out.append("**Easing:** " + _join(ease) + ".")
     if tight:
-        out.append("**Weighing:** " + _join(tight) + ".")
+        out.append("**Tightening:** " + _join(tight) + ".")
     mv = att.get("movers", [])
     if mv:
         parts = [f"{PULSE_PHRASES[k][0]} moved {'easier' if d > 0 else 'tighter'}"

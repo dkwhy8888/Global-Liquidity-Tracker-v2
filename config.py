@@ -27,8 +27,10 @@ Z_WINDOW  = 156       # rolling weeks for z-scoring (~3y)
 MOM_WEEKS = 13        # momentum / change horizon
 LEAD_WEEKS = 8        # assumed lead of liquidity over equities (overlay corr)
 RESAMPLE  = "W-FRI"   # weekly grid everything is aligned to
-STALE_WEEKS = 13      # carry a component's last reading forward at most this long (release lags);
-                      # anything staler (discontinued series) drops out of the composite
+STALE_WEEKS = 17      # carry a component's last reading forward at most this long (release lags);
+                      # anything staler (discontinued series) drops out of the composite.
+                      # Monthly series are dated the 1st of their month and reach TradingView ~2.5 months
+                      # later, so 13 weeks left a gap of a few days before each release (KR, Oct-2026).
 
 METRICS = [
     # ---------------- GLOBAL overlay (the master layer) ----------------

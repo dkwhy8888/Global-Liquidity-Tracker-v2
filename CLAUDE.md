@@ -70,9 +70,16 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   per (score, direction, horizon) across indices; split-half stability; lead–lag profile of
   4-week changes; regime table; timing rule (hold when impulse ≥ 0). Feeds the dashboard's
   "Does it predict?" tab. Run: `python predictive.py`.
+- **stress.py** — does the daily pulse warn before S&P 500 sell-offs? Three signals from the
+  pulse's signed z (plumbing = net liquidity + SOFR−IORB; market = VIX + MOVE; full), used 2
+  business days late, fire at z ≤ −1 while the S&P is within 5% of its peak; events = ≥10% fall in
+  the next 63 days (≥5% in 21); circular-shift null (keeps clustering); BH q-values; per-sell-off
+  table; false-alarm counts; sensitivity to other cut-offs; a power simulation. Sample starts
+  2013-11 (net-liquidity z needs 3 years). HY/IG OAS are not usable: FRED holds only ~3 years.
+  Feeds the "Sell-off test" section of the predict tab. Run: `python stress.py`.
 - **tests/test_invariants.py** — pytest on synthetic data for the invariants below
   (z clip, YoY, weekly ffill, sign, regime, composite, econ_cache break/merge, point-in-time
-  shift, BH q-values, surrogate p-values, verdict rules, timing rule).
+  shift, BH q-values, surrogate p-values, verdict rules, timing rule, stress-test helpers).
   Run `pytest -q` before pushing.
 - **build_artifact.py** — runs the engine and injects JSON into `artifact/template.html`,
   writing `artifact/liquidity_tracker.html` (build output, gitignored).
@@ -110,7 +117,7 @@ environment variable in cloud sessions). Never print, hardcode or commit it. The
   later; using the live dating looks into the future and inflates every slow input.
 - All series resampled to weekly (W-FRI); monthly series forward-filled. The still-open
   week (bin dated after today) is dropped, and each component's signed z is carried
-  forward at most `STALE_WEEKS` (13) past its last print, so release lags don't knock a
+  forward at most `STALE_WEEKS` (17) past its last print, so release lags don't knock a
   series out of the latest composite but discontinued series do drop out.
 - Known dead FRED ids (resolve but stopped updating): `MABMM301EZM189S` EU M3 (last Nov
   2023), `MYAGM2JPM189S` JP M2 (last Feb 2017). Replace via ECB SDW / BOJ (task 4).
@@ -208,3 +215,16 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
   history in view); Asia history starts 2014–2018; M2/M3 are today's revised values; local-
   currency price indices; HSTECH, STAR 50 not available.
 - The split and the weights are unchanged. Revisit them only with owner approval.
+
+## Findings: does the daily pulse warn before sell-offs? (Oct 2026, S&P 500, 2013-11 to 2026-10)
+- **No reliable warning.** 6 sell-offs of ≥10%. Warned in time (fired from calm, ≥5% fall still to
+  come): plumbing 2 of 6, market stress 3 of 6, full pulse 1 of 6. At the −1 cut-off no test passes
+  (best: full pulse, ratio 1.75×, p = 0.14, q = 0.5). False alarms: plumbing 25 episodes (2 followed
+  by a 10% fall, vs an 11% base rate), market 13 (4), full 8 (2).
+- At a looser −0.5 cut-off the full pulse looks better (2.2×, p ≈ 0.015) but that cut-off was not
+  set in advance, it is the best of ~18 looks, and it fires 22 times with 4 hits. A hint only.
+- **Power is low:** a planted warning that precedes every sell-off is detected in ~90% of runs, one
+  that catches half in ~55%, one that catches a third in ~40%. "No reliable warning" = "no strong one".
+- **Wording:** the page describes conditions; it is not a forecast. Regime sentences, "Easing /
+  Tightening" labels and the masthead say so. An unsupported line ("stress this high has more often
+  come before better equity returns") came from the old biased backtest and was removed.

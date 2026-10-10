@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config as C            # noqa: E402
 import econ_cache as EC       # noqa: E402
 import predictive as PR       # noqa: E402
+import stress as ST           # noqa: E402
 import tracker as T           # noqa: E402
 
 rng = np.random.default_rng(0)
@@ -200,3 +201,64 @@ def test_group_composite_uses_only_its_buckets():
     assert T.group_composite(meta, z, C.IMPULSE_BUCKETS)["US"].iloc[-1] == 1.0
     assert T.group_composite(meta, z, C.CONDITIONS_BUCKETS)["US"].iloc[-1] == -2.0
     assert T.group_composite(meta, z, None)["US"].iloc[-1] == -0.5
+
+
+# ------------------------------------------------------------------ stress.py ----
+def _px(n=1500, seed=3):
+    r = np.random.default_rng(seed)
+    return pd.Series(100 * np.exp(np.cumsum(r.normal(0.0004, 0.01, n))),
+                     index=pd.bdate_range("2013-01-01", periods=n))
+
+
+def test_fwd_drawdown_looks_only_forward():
+    px = pd.Series([100.0, 90.0, 95.0, 80.0, 100.0], index=pd.bdate_range("2020-01-01", periods=5))
+    d = ST.fwd_drawdown(px, 2)
+    assert d.iloc[0] == pytest.approx(-0.10)            # next 2 closes: 90, 95
+    assert d.iloc[1] == pytest.approx(80 / 90 - 1)      # next 2 closes: 95, 80
+    assert d.iloc[3] == 0.0 or np.isnan(d.iloc[3])      # 100 afterwards: no fall (or unknown)
+    assert d.iloc[-1] != d.iloc[-1]                     # no future left: unknown, not zero
+
+
+def test_corrections_finds_peak_to_trough():
+    idx = pd.bdate_range("2020-01-01", periods=10)
+    px = pd.Series([100, 105, 110, 100, 95, 98, 100, 105, 111, 112], index=idx, dtype=float)
+    c = ST.corrections(px, depth=-0.10)
+    assert len(c) == 1
+    assert c[0]["peak"] == idx[2] and c[0]["trough"] == idx[4]
+    assert c[0]["depth"] == pytest.approx(95 / 110 - 1)
+
+
+def test_lagged_signal_is_not_known_early():
+    idx = pd.bdate_range("2020-01-01", periods=30)
+    s = pd.Series(np.arange(30.0), index=idx)
+    out = ST.lagged(s, idx, lag=2)
+    assert out.iloc[10] == 8.0 and out.iloc[:2].isna().all()
+
+
+def test_stress_test_detects_a_planted_warning_and_ignores_noise():
+    r = np.random.default_rng(0)
+    n = 2500
+    ev = np.zeros(n, bool)
+    for k in range(100, n - 100, 220):
+        ev[k - 40:k] = True                               # "a fall within the next 40 days" days, clustered
+    fire = np.zeros(n, bool)
+    for k in range(100, n - 100, 220):
+        fire[k - 35:k - 20] = True                        # the signal fires inside each window
+    hit = ST.hit_rate_test(fire, ev, np.random.default_rng(1), nshift=500)
+    assert hit["p"] < 0.05 and hit["hit"] > hit["base"]
+    ps = []
+    for k in range(25):                                   # unrelated fires: false-positive rate stays small
+        f = np.zeros(n, bool)
+        for s0 in r.integers(0, n - 30, 10):
+            f[s0:s0 + 15] = True
+        ps.append(ST.hit_rate_test(f, ev, np.random.default_rng(k), nshift=300)["p"])
+    assert np.mean(np.array(ps) < 0.05) < 0.2
+
+
+def test_sub_score_uses_only_its_keys():
+    idx = pd.bdate_range("2020-01-01", periods=3)
+    pl = {"z": pd.DataFrame({"vix": [1.0] * 3, "move": [3.0] * 3, "net_liq_daily": [-2.0] * 3}, index=idx),
+          "meta": {"vix": {"weight": 1.0}, "move": {"weight": 1.0}, "net_liq_daily": {"weight": 2.0}}}
+    assert ST.sub_score(pl, ["vix", "move"]).iloc[-1] == pytest.approx(2.0)
+    assert ST.sub_score(pl, ["net_liq_daily"]).iloc[-1] == pytest.approx(-2.0)
+    assert ST.sub_score(pl, None).iloc[-1] == pytest.approx((1 + 3 - 4) / 4)

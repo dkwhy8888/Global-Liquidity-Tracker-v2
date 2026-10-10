@@ -64,6 +64,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .mast { padding-block: 40px 22px; display: grid; gap: 10px; }
 .eyebrow { font: 600 12px/1.2 var(--cond); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
 h1 { font: 600 clamp(32px, 4.6vw, 48px)/1.02 var(--cond); letter-spacing: -.012em; margin: 0; text-wrap: balance; }
+.mast-note { margin: 0; font-size: 13.5px; color: var(--ink-2); max-width: 80ch; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); font-size: 13px; }
 .meta b { color: var(--ink); font-weight: 600; }
 
@@ -290,6 +291,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
 <header class="wrap mast">
   <div class="eyebrow">Weekly liquidity monitor · 7 markets + global overlay</div>
   <h1>Global Liquidity Tracker</h1>
+  <p class="mast-note">A description of liquidity conditions, not a forecast. Tests show the scores do not reliably predict returns. <button type="button" class="linkbtn" id="mast-link">See the evidence →</button></p>
   <div class="meta" id="meta"></div>
 </header>
 
@@ -394,6 +396,18 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
       <div class="panel"><p class="chart-title">Easy vs tight liquidity</p><p class="chart-note">Average index return over the 13 weeks after each reading, by the four regimes of the impulse score.</p><div class="tbl-wrap"><table id="regtbl"></table></div><p class="caption" id="reg-cap"></p></div>
     </div>
     <div class="panel" style="margin-top:16px"><p class="chart-title">A simple timing rule</p><p class="chart-note">Hold the index while the impulse score is at or above zero, hold cash otherwise. The signal is read on Friday and used the next week. No tuning, no costs, no dividends.</p><div class="chart" id="ch-timing"></div><div class="tbl-wrap"><table id="tmtbl"></table></div><p class="caption" id="tm-cap"></p></div>
+  </section>
+
+  <section id="p-stress" hidden>
+    <div class="sec-head"><div><h2>Sell-off warning test</h2><p class="sub">The first test looks at average returns. This one asks a narrower question: when the daily pulse turns tight, is a large fall in the S&amp;P 500 more likely? A "warning" counts only if it fires while the market is within 5% of its peak.</p></div></div>
+    <p class="lead" id="s-lead"></p>
+    <div class="verdicts" id="s-cards"></div>
+    <div class="callout" id="s-alarms"></div>
+    <div class="panel"><div class="sec-head sm"><div><p class="chart-title">Pulse before each sell-off</p><p class="chart-note">Shaded: S&amp;P 500 falls of 10% or more, from peak to trough. Dashed line: the −1 cut-off that counts as a warning. A useful signal would dip below the line before each shaded area, not inside it.</p></div><div class="seg" id="s-pick" role="group" aria-label="Which signal"></div></div><div class="chart" id="ch-stress"></div></div>
+    <div class="panel tbl-wrap" style="margin-top:16px"><table id="s-eptbl"></table></div>
+    <p class="p-note" id="s-epnote"></p>
+    <div class="panel tbl-wrap" style="margin-top:16px"><table id="s-tests"></table></div>
+    <div class="callout" id="s-caveats" style="margin-top:12px"></div>
   </section>
 
   <section id="p-inputs">
@@ -1009,6 +1023,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     if (hints.length) bits.push(`The strongest forward hints are ${hints.map(x => `${x.i.label} (${fmtSigned(x.c.ic, 2)} at 3 months, p = ${x.c.p.toFixed(2)})`).join(', ')}. None survives the correction for testing many indices, and several rest on a short history.`);
     if (rev.length) bits.push(`${namesOf(rev)} show the opposite sign at 6 months (the score was higher before weaker returns). This is not reliable after correction, and it comes from one stretch of Chinese policy history.`);
     bits.push(`A simple rule (hold the index while the impulse score is at or above zero, otherwise cash) improved the return per unit of risk in ${T_.sharpeBetter} of ${T_.n} indices and cut the worst fall in ${T_.ddBetter}, but earned less in total in ${T_.n - T_.cagrBetter}.`);
+    if (D.stress) bits.push('Separately, the sell-off warning test asks whether the daily pulse warns before large S&P 500 falls. See "Sell-off test" below.');
     $('#p-hints').innerHTML = mdInline('**Hints and caveats.** ' + bits.join(' '));
     $('#p-fix').innerHTML = mdInline('**What changed from the earlier version of this test.** The first version used monthly numbers (M2, M3, loans) from the first day of their month, but they are published 1 to 2 months later, so it saw the future. This version delays every series to its real publication date (listed under "Method and limits"). The forward results got weaker, which is what that correction should do.');
     $('#read-note').innerHTML = mdInline(`**Does the score predict markets?** ${head.replace('Short answer: ', '')} `);
@@ -1178,19 +1193,92 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     seg($('#p-score'), [['impulse', 'Liquidity impulse'], ['conditions', 'Market conditions']], pst.score, v => { pst.score = v; renderScorecard(); });
     const pk = $('#pi-picker'); pk.textContent = '';
     D.regions.filter(r => (E.inputs[r] || []).length).forEach(r => { const b = el('button', null, r); b.type = 'button'; b.setAttribute('aria-pressed', String(r === pst.reg)); b.addEventListener('click', () => { pst.reg = r; pk.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderInputs(); }); pk.append(b); });
-    renderScorecard(); renderDetail(); renderInputs(); renderPredictMethod();
+    renderScorecard(); renderDetail(); renderStress(); renderInputs(); renderPredictMethod();
+  }
+
+  /* ---------- sell-off warning test ---------- */
+  const SS = D.stress;
+  const sst = { sig: 'full', built: false };
+  const SIGL = { plumbing: 'Funding plumbing', market: 'Market stress', full: 'Full pulse' };
+  const SIGK = ['plumbing', 'market', 'full'];
+  function renderStress() {
+    if (!SS) return;
+    $('#p-stress').hidden = false;
+    const n = SS.nEpisodes, best = SS.tests.filter(t => t.event === 'long').reduce((a, t) => (a == null || t.p < a.p) ? t : a, null);
+    const anySig = SS.tests.some(t => t.q < 0.10);
+    const base = best ? best.base : null;
+    $('#s-lead').textContent = anySig ? 'Short answer: there is some sign of a warning.' : 'Short answer: no reliable warning.';
+    const box = $('#s-cards'); box.textContent = '';
+    const c0 = el('div', 'vcard'); c0.append(el('span', 'l', 'Sell-offs of 10%+ in the test'), el('span', 'v num', String(n)), el('span', 's', `S&P 500, ${fmtDate(SS.from)} to ${fmtDate(SS.to)}. Few events, so the test has little power.`)); box.append(c0);
+    SIGK.forEach(k => { const c = el('div', 'vcard'); c.append(el('span', 'l', `Warned in time: ${SIGL[k]}`), el('span', 'v num', `${SS.warned[k]} of ${n}`), el('span', 's', k === 'plumbing' ? 'Net liquidity and SOFR − IORB.' : k === 'market' ? 'VIX and MOVE.' : 'Every pulse input.')); box.append(c); });
+    const al = SS.alarms;
+    $('#s-alarms').innerHTML = mdInline(`**False alarms.** From a calm market, the signal fired as separate episodes: ${SIGK.map(k => `${SIGL[k].toLowerCase()} ${al[k].episodes} times (${al[k].followed} followed by a 10% fall within 3 months)`).join('; ')}. For comparison, a 10% fall followed ${base == null ? '—' : base.toFixed(0) + '%'} of all calm days anyway. A signal that fires often and is right rarely adds little.`);
+    seg($('#s-pick'), SIGK.map(k => [k, SIGL[k]]), sst.sig, v => { sst.sig = v; mount($('#ch-stress'), buildStress); });
+    mount($('#ch-stress'), buildStress);
+    renderEpisodes(); renderStressTests();
+    const sens = SS.sens || [], pw = SS.power || {};
+    const loose = sens.filter(r => r.thresh === -0.5).sort((a, b) => a.p - b.p)[0];
+    const looks = SS.tests.length * (1 + new Set(sens.map(r => r.thresh)).size);
+    const bits = [];
+    if (loose && loose.p < 0.05) bits.push(`At a looser −0.5 cut-off, the ${SIGL[loose.signal].toLowerCase()} looks better (a 10% fall was ${loose.lift}× as likely after it fired, p = ${loose.p.toFixed(2)}). That cut-off was not the one set in advance, it is the best of about ${looks} comparisons, and it fired ${loose.episodes} separate times with only ${loose.followed} followed by a 10% fall. Treat it as a hint to watch, not a signal.`);
+    const p1 = pw['1.00'], p5 = pw['0.50'], p3 = pw['0.33'];
+    if (p1) bits.push(`How much could this test see? With only ${n} sell-offs it is blunt. In a simulation, a warning that fired before every sell-off was detected in ${Math.round(p1.share * 100)}% of runs; one that caught half, in ${Math.round(p5.share * 100)}%; one that caught a third, in ${Math.round(p3.share * 100)}%. So "no reliable warning" means "no strong one", not "none".`);
+    bits.push('Other limits: US data only; the S&P 500 only; signals are used 2 business days after their date; HY and IG credit spreads are not in the long test because FRED holds only about 3 years of them.');
+    $('#s-caveats').innerHTML = mdInline(bits.join(' '));
+  }
+  function buildStress(t) {
+    const C_ = SS.chart, k = sst.sig;
+    const ser = C_.dates.map((d, i) => [d, C_[k][i]]);
+    return {
+      animation: false, grid: GRID, xAxis: timeAxis(t),
+      yAxis: valAxis(t, { scale: false, min: v => Math.min(-2, Math.floor(v.min)), max: v => Math.max(2, Math.ceil(v.max)), axisLabel: Object.assign(lbl(t), { formatter: v => fmtSigned(v, 0) }) }),
+      tooltip: tip(t, ps => { const p = (Array.isArray(ps) ? ps : [ps]).find(x => x.value && x.value[1] != null); return p ? `<div class="tt-d">${esc(dateOf(p.value[0]))}</div><div class="tt-r"><b>${esc(fmtSigned(p.value[1], 2))}</b><span>${esc(SIGL[k])} (easier is +)</span></div>` : ''; }),
+      series: [{
+        name: SIGL[k], type: 'line', showSymbol: false, sampling: 'lttb', lineStyle: { width: 1.6, color: t.accent }, itemStyle: { color: t.accent }, data: ser,
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: t.neg, type: 'dashed', width: 1 }, data: [{ yAxis: SS.thresh }] },
+        markArea: { silent: true, itemStyle: { color: t.neg, opacity: 0.14 }, data: C_.areas.map(a => [{ xAxis: a.from }, { xAxis: a.to }]) },
+      }],
+    };
+  }
+  function renderEpisodes() {
+    const tb = $('#s-eptbl'); tb.textContent = '';
+    const head = el('thead'); head.innerHTML = `<tr><th>S&amp;P 500 peak</th><th class="r">Fall</th><th class="r">Days to bottom</th>${SIGK.map(k => `<th>${SIGL[k]}</th>`).join('')}</tr>`;
+    const body = el('tbody');
+    SS.episodes.forEach(e => {
+      const tr = el('tr'); const d = el('td'); d.append(el('div', 't-name', fmtDate(e.peak))); tr.append(d, el('td', 'r num', fmtSigned(e.depth, 1) + '%'), el('td', 'r num', String(e.days)));
+      SIGK.forEach(k => {
+        const v = e.signals[k]; const td = el('td');
+        if (v.fired) { const ok = v.fallLeft <= -5; td.append(chip(ok ? 'useful' : 'weak', ok ? 'Warned' : 'Late')); td.append(el('div', 't-meta', `${v.lead < 0 ? Math.abs(v.lead) + ' days before peak' : v.lead === 0 ? 'on the peak day' : v.lead + ' days after peak'} · ${fmtSigned(v.fallLeft, 0)}% left`)); }
+        else { td.append(chip('none', 'No warning')); }
+        tr.append(td);
+      });
+      body.append(tr);
+    });
+    tb.append(head, body);
+    $('#s-epnote').textContent = '"Warned" = the signal reached −1 while the S&P 500 was within 5% of its peak, and at least 5% of the fall was still to come. "% left" = the fall from the signal date to the bottom.';
+  }
+  function renderStressTests() {
+    const tb = $('#s-tests'); tb.textContent = '';
+    const head = el('thead'); head.innerHTML = '<tr><th>Signal</th><th>Question</th><th class="r">Days fired</th><th class="r">Sell-off followed</th><th class="r">All calm days</th><th class="r">Ratio</th><th class="r">p-value</th><th class="r">Corrected q</th></tr>';
+    const body = el('tbody');
+    const EV = { long: 'S&P falls 10%+ within 3 months', short: 'S&P falls 5%+ within 1 month' };
+    SIGK.forEach(k => SS.tests.filter(t => t.signal === k).sort((a, b) => a.event < b.event ? 1 : -1).forEach(t => {
+      const tr = el('tr'); tr.append(el('td', 't-name', SIGL[k]), el('td', null, EV[t.event]), el('td', 'r num', `${t.nFire} of ${t.n}`), el('td', 'r num', t.hit.toFixed(1) + '%'), el('td', 'r num', t.base.toFixed(1) + '%'), el('td', 'r num', t.lift == null ? '—' : t.lift.toFixed(2) + '×'), el('td', 'r num', t.p.toFixed(2)), el('td', 'r num', t.q.toFixed(2)));
+      body.append(tr);
+    }));
+    tb.append(head, body);
   }
 
   /* ---------- tabs ---------- */
   const TABS = {
     main: [['read', 'The read'], ['pulse', 'Daily pulse'], ['overlay', 'All regions'], ['region', 'Region detail'], ['fed', 'Fed balance sheet'], ['map', 'Regime map'], ['history', 'History'], ['method', 'How to read this']],
-    predict: [['p-answer', 'The answer'], ['p-grid', 'Scorecard'], ['p-detail', 'Index detail'], ['p-inputs', 'Single inputs'], ['p-method', 'Method and limits']],
+    predict: [['p-answer', 'The answer'], ['p-grid', 'Scorecard'], ['p-detail', 'Index detail'], ['p-stress', 'Sell-off test'], ['p-inputs', 'Single inputs'], ['p-method', 'Method and limits']],
   };
   function renderTabs() {
     const opts = [['main', 'Dashboard']]; if (E) opts.push(['predict', 'Does it predict?']);
     seg($('#tabs'), opts, state.tab, v => showTab(v));
     const nav = $('#jump'); nav.textContent = '';
-    TABS[state.tab].forEach(([id, label]) => { const a = el('a', null, label); a.href = '#' + id; nav.append(a); });
+    TABS[state.tab].filter(([id]) => id !== 'p-stress' || SS).forEach(([id, label]) => { const a = el('a', null, label); a.href = '#' + id; nav.append(a); });
     $('#win-ctl').hidden = state.tab !== 'main';
   }
   function showTab(name, anchor) {
@@ -1378,6 +1466,10 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
   function renderMethod() {
     const box = $('#method-body'); box.textContent = '';
     const col = (title, nodes) => { const d = el('div'); d.append(el('h3', null, title)); nodes.forEach(n => d.append(n)); box.append(d); };
+    col('What this is for', [
+      el('p', null, 'This page describes how loose or tight liquidity is in each market, which inputs drive it, and which way it is moving. Use it as context next to fundamentals and price action, for example to see why a market moved.'),
+      el('p', null, 'It is not a buy or sell signal. A point-in-time test (see "Does it predict?") found no reliable forward link between the scores and index returns, and no reliable warning before large sell-offs.'),
+    ]);
     col('Why z-scores', [
       el('p', null, `Each input is converted into how many standard deviations it sits from its own rolling ${Math.round(D.params.zWindow / 52)}-year average. Fed assets in trillions, policy rates in percent and volatility in index points cannot be averaged directly; once each is a z-score they share one scale and can be blended into a composite.`),
       el('p', null, 'A z-score is not more accurate than the raw number. It trades the real units for comparability. The real units are in the "What\'s inside the score" table and the Fed balance-sheet section. Signs are flipped where needed so + always means easier, and scores are capped at ±3.'),
@@ -1414,6 +1506,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
   mount($('#ch-quad'), buildQuad); renderMapNotes();
   renderHistory(); renderMethod();
   if (E) renderAnswer();
+  const ml = $('#mast-link'); if (E) ml.addEventListener('click', () => showTab('predict', 'p-answer')); else ml.hidden = true;
   const savedTab = store.get('tab', 'main');
   state.tab = (savedTab === 'predict' && E) || (location.hash || '').indexOf('#p-') === 0 && E ? 'predict' : 'main';
   showTab(state.tab);

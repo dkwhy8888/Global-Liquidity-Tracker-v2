@@ -375,4 +375,4 @@ q.add_hline(y=0, line_dash="dot"); q.add_vline(x=0, line_dash="dot")
 q.update_layout(xaxis_title="liquidity level (z)",
                 yaxis_title=f"{C.MOM_WEEKS}-week momentum", height=440, margin=dict(t=20))
 st.plotly_chart(q, width="stretch")
-st.caption("Top-right = easy & improving (risk-on). Bottom-left = tight & deteriorating (risk-off).")
+st.caption("Top-right = easy & improving. Bottom-left = tight & deteriorating. A description of conditions, not a forecast.")
