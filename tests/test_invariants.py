@@ -12,6 +12,7 @@ import config as C            # noqa: E402
 import econ_cache as EC       # noqa: E402
 import predictive as PR       # noqa: E402
 import stress as ST           # noqa: E402
+import stress_multi as SM     # noqa: E402
 import tracker as T           # noqa: E402
 
 rng = np.random.default_rng(0)
@@ -262,3 +263,31 @@ def test_sub_score_uses_only_its_keys():
     assert ST.sub_score(pl, ["vix", "move"]).iloc[-1] == pytest.approx(2.0)
     assert ST.sub_score(pl, ["net_liq_daily"]).iloc[-1] == pytest.approx(-2.0)
     assert ST.sub_score(pl, None).iloc[-1] == pytest.approx((1 + 3 - 4) / 4)
+
+
+def test_pooled_stress_test_detects_planted_warning_in_every_market_and_ignores_noise():
+    n, m = 2600, 4
+    ev = np.zeros((n, m), bool)
+    fire = np.zeros((n, m), bool)
+    for k in range(120, n - 120, 230):
+        for j in range(m):
+            ev[k - 40:k, j] = True
+            fire[k - 35:k - 20, j] = True
+    mask = np.ones((n, m), bool)
+    hit = SM.pooled_test(fire, ev, mask, np.random.default_rng(1), 100, nshift=400, names=list("abcd"))
+    assert hit["pooled"]["p"] < 0.05 and hit["pooled"]["hit"] > hit["pooled"]["base"]
+    assert [r["market"] for r in hit["rows"]] == list("abcd")
+    r = np.random.default_rng(2)
+    ps = []
+    for k in range(25):
+        f = np.zeros((n, m), bool)
+        for s0 in r.integers(0, n - 30, 10):
+            f[s0:s0 + 15, :] = True
+        ps.append(SM.pooled_test(f, ev, mask, np.random.default_rng(k), 100, nshift=300)["pooled"]["p"])
+    assert np.mean(np.array(ps) < 0.05) < 0.2
+
+
+def test_effective_episodes_merges_clustered_peaks():
+    d = pd.to_datetime(["2008-01-01", "2008-02-15", "2008-03-30", "2009-06-01", "2009-07-01"])
+    assert SM.effective_episodes(d) == 2
+    assert SM.effective_episodes([]) == 0

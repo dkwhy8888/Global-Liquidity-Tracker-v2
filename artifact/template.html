@@ -264,6 +264,7 @@ tr.comp td { font-weight: 600; }
 @media (max-width: 560px) { .verdicts { grid-template-columns: 1fr; } }
 .callout { background: var(--surface); border: 1px solid var(--hair); border-left: 3px solid var(--warning); border-radius: 0 10px 10px 0; padding: 11px 14px; font-size: 13.5px; color: var(--ink-2); max-width: 90ch; margin: 0 0 12px; }
 .callout b { color: var(--ink); }
+.scoretbl tr.pass td, #m-tests tr.pass td { background: color-mix(in oklab, var(--accent) 6%, var(--surface)); }
 .scoretbl th.grp { text-align: center; border-bottom: 1px solid var(--hair); letter-spacing: .06em; }
 .scoretbl tr.idx { cursor: pointer; }
 .scoretbl tr.idx:hover td { background: var(--surface-2); }
@@ -408,6 +409,18 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     <p class="p-note" id="s-epnote"></p>
     <div class="panel tbl-wrap" style="margin-top:16px"><table id="s-tests"></table></div>
     <div class="callout" id="s-caveats" style="margin-top:12px"></div>
+
+    <div id="s-multi" hidden>
+      <div class="sec-head" style="margin-top:34px"><div><h2>More markets, longer history</h2><p class="sub">Six markets (S&amp;P 500, Euro Stoxx 50, Nikkei 225, Hang Seng, KOSPI, Straits Times) and, back to 2007, the crisis years. The US daily signals are tested against sell-offs in every market. Each region's own weekly scores are tested against its own index.</p></div></div>
+      <p class="lead" id="m-lead"></p>
+      <div class="panel tbl-wrap"><table id="m-tests"></table></div>
+      <p class="p-note" id="m-testnote"></p>
+      <div class="callout" id="m-robust"></div>
+      <div class="panel tbl-wrap" style="margin-top:16px"><table id="m-mkts"></table></div>
+      <p class="p-note" id="m-mktnote"></p>
+      <div class="panel tbl-wrap" style="margin-top:16px"><table id="m-weekly"></table></div>
+      <div class="callout" id="m-notes" style="margin-top:12px"></div>
+    </div>
   </section>
 
   <section id="p-inputs">
@@ -1023,7 +1036,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     if (hints.length) bits.push(`The strongest forward hints are ${hints.map(x => `${x.i.label} (${fmtSigned(x.c.ic, 2)} at 3 months, p = ${x.c.p.toFixed(2)})`).join(', ')}. None survives the correction for testing many indices, and several rest on a short history.`);
     if (rev.length) bits.push(`${namesOf(rev)} show the opposite sign at 6 months (the score was higher before weaker returns). This is not reliable after correction, and it comes from one stretch of Chinese policy history.`);
     bits.push(`A simple rule (hold the index while the impulse score is at or above zero, otherwise cash) improved the return per unit of risk in ${T_.sharpeBetter} of ${T_.n} indices and cut the worst fall in ${T_.ddBetter}, but earned less in total in ${T_.n - T_.cagrBetter}.`);
-    if (D.stress) bits.push('Separately, the sell-off warning test asks whether the daily pulse warns before large S&P 500 falls. See "Sell-off test" below.');
+    if (D.stress) bits.push('Separately, the sell-off tests ask whether the daily pulse and the regional scores warn before large falls, first in the S&P 500 and then in six markets back to 2007. No liquidity measure gives a reliable warning. See "Sell-off test" below.');
     $('#p-hints').innerHTML = mdInline('**Hints and caveats.** ' + bits.join(' '));
     $('#p-fix').innerHTML = mdInline('**What changed from the earlier version of this test.** The first version used monthly numbers (M2, M3, loans) from the first day of their month, but they are published 1 to 2 months later, so it saw the future. This version delays every series to its real publication date (listed under "Method and limits"). The forward results got weaker, which is what that correction should do.');
     $('#read-note').innerHTML = mdInline(`**Does the score predict markets?** ${head.replace('Short answer: ', '')} `);
@@ -1207,7 +1220,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     const n = SS.nEpisodes, best = SS.tests.filter(t => t.event === 'long').reduce((a, t) => (a == null || t.p < a.p) ? t : a, null);
     const anySig = SS.tests.some(t => t.q < 0.10);
     const base = best ? best.base : null;
-    $('#s-lead').textContent = anySig ? 'Short answer: there is some sign of a warning.' : 'Short answer: no reliable warning.';
+    $('#s-lead').textContent = anySig ? 'S&P 500 alone: there is some sign of a warning.' : 'S&P 500 alone: no reliable warning.';
     const box = $('#s-cards'); box.textContent = '';
     const c0 = el('div', 'vcard'); c0.append(el('span', 'l', 'Sell-offs of 10%+ in the test'), el('span', 'v num', String(n)), el('span', 's', `S&P 500, ${fmtDate(SS.from)} to ${fmtDate(SS.to)}. Few events, so the test has little power.`)); box.append(c0);
     SIGK.forEach(k => { const c = el('div', 'vcard'); c.append(el('span', 'l', `Warned in time: ${SIGL[k]}`), el('span', 'v num', `${SS.warned[k]} of ${n}`), el('span', 's', k === 'plumbing' ? 'Net liquidity and SOFR − IORB.' : k === 'market' ? 'VIX and MOVE.' : 'Every pulse input.')); box.append(c); });
@@ -1215,7 +1228,7 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     $('#s-alarms').innerHTML = mdInline(`**False alarms.** From a calm market, the signal fired as separate episodes: ${SIGK.map(k => `${SIGL[k].toLowerCase()} ${al[k].episodes} times (${al[k].followed} followed by a 10% fall within 3 months)`).join('; ')}. For comparison, a 10% fall followed ${base == null ? '—' : base.toFixed(0) + '%'} of all calm days anyway. A signal that fires often and is right rarely adds little.`);
     seg($('#s-pick'), SIGK.map(k => [k, SIGL[k]]), sst.sig, v => { sst.sig = v; mount($('#ch-stress'), buildStress); });
     mount($('#ch-stress'), buildStress);
-    renderEpisodes(); renderStressTests();
+    renderEpisodes(); renderStressTests(); renderStressMulti();
     const sens = SS.sens || [], pw = SS.power || {};
     const loose = sens.filter(r => r.thresh === -0.5).sort((a, b) => a.p - b.p)[0];
     const looks = SS.tests.length * (1 + new Set(sens.map(r => r.thresh)).size);
@@ -1225,6 +1238,83 @@ details.lagbox table { margin-top: 6px; font-size: 12.5px; }
     if (p1) bits.push(`How much could this test see? With only ${n} sell-offs it is blunt. In a simulation, a warning that fired before every sell-off was detected in ${Math.round(p1.share * 100)}% of runs; one that caught half, in ${Math.round(p5.share * 100)}%; one that caught a third, in ${Math.round(p3.share * 100)}%. So "no reliable warning" means "no strong one", not "none".`);
     bits.push('Other limits: US data only; the S&P 500 only; signals are used 2 business days after their date; HY and IG credit spreads are not in the long test because FRED holds only about 3 years of them.');
     $('#s-caveats').innerHTML = mdInline(bits.join(' '));
+  }
+  function renderStressMulti() {
+    const M = D.stressMulti; if (!M) return;
+    $('#s-multi').hidden = false;
+    const MK = M.markets, tests = M.tests;
+    const passes = tests.filter(t => t.q != null && t.q < 0.10);
+    const rob = (M.robust || []).find(r => r.start >= '2010');
+    const long = (M.robust || []).find(r => r.start < '2010');
+    const fragile = passes.length && rob && rob.p > 0.05;
+    const SIGN = { plumbing: 'Funding plumbing', market: 'Market stress (VIX, MOVE)', full: 'Full daily pulse' };
+    let head;
+    if (!passes.length) head = 'Short answer: no reliable warning in any market.';
+    else if (fragile) head = 'Short answer: liquidity measures do not warn. One volatility gauge passes, and it rests on a single crisis.';
+    else head = 'Short answer: one signal passes the test in several markets.';
+    $('#m-lead').textContent = head;
+
+    const tb = $('#m-tests'); tb.textContent = '';
+    const hd = el('thead'); hd.innerHTML = '<tr><th>Signal</th><th>Sample</th><th>Question</th><th class="r">Markets</th><th class="r">Sell-off followed</th><th class="r">All calm days</th><th class="r">Ratio</th><th class="r">p-value</th><th class="r">Corrected q</th></tr>';
+    const bd = el('tbody');
+    const EV = { long: '10%+ fall within 3 months', short: '5%+ fall within 1 month' };
+    tests.forEach(t => {
+      const tr = el('tr');
+      const sig = t.family === 'weekly' ? (t.signal === 'impulse' ? 'Regional liquidity impulse' : 'Regional market conditions') : SIGN[t.signal];
+      const smp = t.family === 'weekly' ? 'weekly, own index' : t.family === 'daily-long' ? `daily, from ${t.start.slice(0, 4)}` : `daily, from ${t.start.slice(0, 4)}`;
+      const nm = el('td', 't-name', sig); tr.append(nm, el('td', null, smp), el('td', null, t.family === 'weekly' ? '10%+ fall within 13 weeks' : EV[t.event]), el('td', 'r num', String(t.markets)),
+        el('td', 'r num', t.hit.toFixed(1) + '%'), el('td', 'r num', t.base.toFixed(1) + '%'), el('td', 'r num', t.lift == null ? '—' : t.lift.toFixed(2) + '×'),
+        el('td', 'r num', t.p.toFixed(3)));
+      const q = el('td', 'r num', t.q.toFixed(3)); if (t.q < 0.10) { q.append(el('span', 'mk', '◆')); tr.classList.add('pass'); }
+      tr.append(q); bd.append(tr);
+    });
+    tb.append(hd, bd);
+    $('#m-testnote').textContent = `Ten pooled tests in all; q-values correct for that. Ratio = how many times as often a large fall followed after the signal fired (from a calm market) than on other calm days. "Markets" = markets where the signal fired at least 10 times. ◆ = passes (q < 0.10).`;
+
+    const bits = [];
+    if (passes.length) {
+      const pn = passes.map(t => `${SIGN[t.signal] || t.signal}, ${t.family === 'daily-long' ? 'from 2007' : ''}`.replace(/, $/, '')).join('; ');
+      bits.push(`**The pass.** ${pn} passes (ratio ${passes[0].lift}×, q = ${passes[0].q.toFixed(3)}). VIX and MOVE measure expected volatility, not liquidity.`);
+      if (long && rob) bits.push(`**Robustness check.** Start the same test after the 2007–09 crisis and the effect is gone: from 2010 the ratio is ${rob.lift}× (p = ${rob.p.toFixed(2)}, ${rob.markets} markets where it fires at all), against ${long.lift}× from 2007 (p = ${long.p.toFixed(3)}). The pass comes from the signal firing in 2007, before the global fall. That is one episode seen in six markets. With so few independent episodes, a single event can produce a p-value this small.`);
+    } else bits.push('No test passes the correction.');
+    $('#m-robust').innerHTML = mdInline(bits.join(' '));
+
+    // per-market table for the long daily test
+    const lt = tests.find(t => t.id === 'D-long-market-long'), tab = (M.tables || {})['daily-long'];
+    const mk = $('#m-mkts'); mk.textContent = '';
+    if (lt && tab) {
+      const h2 = el('thead'); h2.innerHTML = '<tr><th>Market (index)</th><th class="r">Sell-offs of 10%+</th><th class="r">Warned in time</th><th class="r">Separate alarms</th><th class="r">Alarms followed by a 10% fall</th><th class="r">Ratio</th><th class="r">p-value</th></tr>';
+      const b2 = el('tbody');
+      tab.rows.forEach(r => {
+        const row = lt.rows.find(x => x.market === r.market) || {};
+        const tr = el('tr'); const c = el('td'); c.append(el('div', 't-name', r.label), el('div', 't-meta', r.market));
+        tr.append(c, el('td', 'r num', String(r.selloffs)), el('td', 'r num', `${r.warned} of ${r.selloffs}`), el('td', 'r num', String(r.alarms)), el('td', 'r num', String(r.followed)),
+          el('td', 'r num', row.lift == null ? '—' : row.lift.toFixed(2) + '×'), el('td', 'r num', row.p == null ? '—' : row.p.toFixed(2)));
+        b2.append(tr);
+      });
+      mk.append(h2, b2);
+      $('#m-mktnote').textContent = `Market-stress signal, from 2007. ${tab.peaks} sell-offs in total, but they cluster: about ${tab.effective} separate global episodes. That is roughly twice the evidence of the S&P 500 alone, not six times.`;
+    }
+
+    // weekly regional table
+    const W = M.weekly || {}, wt = $('#m-weekly'); wt.textContent = '';
+    if (W.impulse) {
+      const h3 = el('thead'); h3.innerHTML = '<tr><th rowspan="2">Region (own index)</th><th class="r" rowspan="2">Sell-offs of 10%+</th><th class="grp sep" colspan="3">Liquidity impulse &lt; −1</th><th class="grp sep" colspan="3">Market conditions &lt; −1</th></tr><tr><th class="r sep">Warned in time</th><th class="r">Alarms</th><th class="r">Followed by a fall</th><th class="r sep">Warned in time</th><th class="r">Alarms</th><th class="r">Followed by a fall</th></tr>';
+      const b3 = el('tbody');
+      W.impulse.forEach(r => {
+        const c = (W.conditions || []).find(x => x.market === r.market) || {};
+        const tr = el('tr'); tr.append(el('td', 't-name', nameOf(r.market)), el('td', 'r num', String(r.selloffs)),
+          el('td', 'r num sep', `${r.warned} of ${r.selloffs}`), el('td', 'r num', String(r.alarms)), el('td', 'r num', String(r.followed)),
+          el('td', 'r num sep', c.selloffs == null ? '—' : `${c.warned} of ${c.selloffs}`), el('td', 'r num', c.alarms == null ? '—' : String(c.alarms)), el('td', 'r num', c.followed == null ? '—' : String(c.followed)));
+        b3.append(tr);
+      });
+      wt.append(h3, b3);
+    }
+    const wi = tests.find(t => t.id === 'W-impulse'), wc = tests.find(t => t.id === 'W-conditions');
+    const nb = [];
+    if (wi && wc) nb.push(`**Regional weekly scores.** After a tight reading (below −1) from a calm market, a 10% fall within 13 weeks followed ${wi.hit.toFixed(0)}% of the time for the impulse score and ${wc.hit.toFixed(0)}% for market conditions, against ${wi.base.toFixed(0)}% and ${wc.base.toFixed(0)}% on other calm days. That is fewer sell-offs than usual, not more: the wrong direction for a warning. ${M.weeklyEffective} separate episodes across the regions.`);
+    nb.push('**Limits.** The daily signals are US data tested against other markets, with each signal used 2 business days after its date. Market holidays are filled forward. Hong Kong has few calm days in the long sample. Price indices in local currency. China is in the weekly test only (CSI 300 has no long daily series here). The global aggregate is left out so it is not counted twice.');
+    $('#m-notes').innerHTML = mdInline(nb.join(' '));
   }
   function buildStress(t) {
     const C_ = SS.chart, k = sst.sig;

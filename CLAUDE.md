@@ -77,6 +77,13 @@ Both import the same `tracker.py` + `narrative.py`, so a methodology fix lands i
   table; false-alarm counts; sensitivity to other cut-offs; a power simulation. Sample starts
   2013-11 (net-liquidity z needs 3 years). HY/IG OAS are not usable: FRED holds only ~3 years.
   Feeds the "Sell-off test" section of the predict tab. Run: `python stress.py`.
+- **stress_multi.py** — the sell-off test across six markets (S&P 500, Euro Stoxx 50, Nikkei,
+  Hang Seng, KOSPI, STI) and 2007-2026, plus each region's weekly scores vs its own index.
+  Pooled statistic = mean over markets of (sell-off rate after a fire − rate on other calm days);
+  null = the signal circularly shifted against ALL markets at once; BH q over 10 pooled tests;
+  robustness by start date; distinct-episode counts. No power simulation: planted warnings are
+  diluted across markets, so the number would mislead. Feeds "More markets, longer history".
+  Run: `python stress_multi.py`.
 - **tests/test_invariants.py** — pytest on synthetic data for the invariants below
   (z clip, YoY, weekly ffill, sign, regime, composite, econ_cache break/merge, point-in-time
   shift, BH q-values, surrogate p-values, verdict rules, timing rule, stress-test helpers).
@@ -228,3 +235,14 @@ US H.4.1 sheet is in **$bn**. Display $bn wherever a human reads it.
 - **Wording:** the page describes conditions; it is not a forecast. Regime sentences, "Easing /
   Tightening" labels and the masthead say so. An unsupported line ("stress this high has more often
   come before better equity returns") came from the old biased backtest and was removed.
+
+## Findings: sell-off test, six markets (Oct 2026)
+- 34 sell-offs of ≥10% across six markets since 2007, about 13 distinct global episodes (11 since
+  2013). Roughly twice the evidence of the S&P alone, not six times.
+- **One pass out of 10 pooled tests**: VIX+MOVE ("market stress") from 2007, ratio 2.5×, q = 0.025.
+  It does not survive a start after the 2007-09 crisis (from 2010: 1.1×, p = 0.42). It fires from
+  calm in 2007, before the global fall: one episode. It is also a volatility gauge, not liquidity.
+- **Liquidity measures do not warn**: funding plumbing 0.47–0.65× (below normal), full pulse
+  1.1× (p = 0.38), regional weekly impulse 0.39× and conditions 0.67× (fewer falls than usual after
+  tight readings). Short (5%/21d) events: nothing.
+- Conclusion for the owner: the dashboard describes conditions. Do not present it as a warning tool.

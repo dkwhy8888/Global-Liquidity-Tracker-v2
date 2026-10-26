@@ -19,6 +19,7 @@ import narrative as N
 import predictive as PR
 import pulse as P
 import stress as ST
+import stress_multi as SM
 import tracker as T
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -166,16 +167,26 @@ def evidence_payload(ds):
         return None
 
 
-def stress_payload():
-    """Does the daily pulse warn before S&P 500 sell-offs? (stress.py) None if it cannot run."""
+def stress_payloads(ds):
+    """Sell-off warning tests (stress.py: S&P 500; stress_multi.py: six markets + regional weekly).
+    Returns (stress, multi); each is None if it could not run."""
     try:
         pl = P.build_pulse(start="2005-01-01")
-        px = ST.fetch_spx()
-        res = ST.analyze(pl, px)
-        return ST.payload(res, ST.sensitivity(pl, px), ST.power_check(res))
     except Exception as e:
         print("  stress FAILED:", repr(e))
-        return None
+        return None, None
+    one = multi = None
+    try:
+        px = ST.fetch_spx()
+        res = ST.analyze(pl, px)
+        one = ST.payload(res, ST.sensitivity(pl, px), ST.power_check(res))
+    except Exception as e:
+        print("  stress FAILED:", repr(e))
+    try:
+        multi = SM.payload(SM.run(pl, ds["pit"]))
+    except Exception as e:
+        print("  stress_multi FAILED:", repr(e))
+    return one, multi
 
 
 def build():
@@ -253,7 +264,7 @@ def build():
                "series": {c: [_num(v, 1) for v in fb[c].values] for c in fb.columns}}
 
     evidence = evidence_payload(ds)
-    stress = stress_payload()
+    stress, stress_multi = stress_payloads(ds)
     # per-region one-liner for the region detail: main index, lead and lag verdicts
     ev_by = {}
     if evidence:
@@ -287,6 +298,7 @@ def build():
         "changes": changes_payload(ds),
         "evidence": evidence,
         "stress": stress,
+        "stressMulti": stress_multi,
     }
     for c in payload["changes"]:
         print(f"CHANGE: {c['name']} moved from {c['from']} to {c['to']} {c['when']}")
